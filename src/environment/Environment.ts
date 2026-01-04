@@ -17,10 +17,18 @@ export class Environment {
   private mode: SimulationMode;
   private poolMesh: THREE.Mesh | null = null;
   private waterMesh: THREE.Mesh | null = null;
+  private oceanMesh: THREE.Mesh | null = null;
+  private waveMesh: THREE.Mesh | null = null;
 
   // Tidal parameters
   private tidalPeriod = 0.5; // days (12 hours for semi-diurnal tide)
   private tidalAmplitude = 0.5; // meters
+
+  // Real-time wave animation
+  private waveTimer = 0; // seconds
+  private waveCycleDuration = 360; // 6 minutes total (3 min high, 3 min low)
+  private waveBasePosition = 10; // Base Z position
+  private waveAmplitude = 8; // How far waves move in/out
 
   constructor(mode: SimulationMode) {
     this.mode = mode;
@@ -42,11 +50,11 @@ export class Environment {
       roughness: 0.4,
       metalness: 0.2,
     });
-    const oceanMesh = new THREE.Mesh(oceanGeometry, oceanMaterial);
-    oceanMesh.rotation.x = -Math.PI / 2;
-    oceanMesh.position.set(0, -5, 10);
-    oceanMesh.receiveShadow = true;
-    scene.add(oceanMesh);
+    this.oceanMesh = new THREE.Mesh(oceanGeometry, oceanMaterial);
+    this.oceanMesh.rotation.x = -Math.PI / 2;
+    this.oceanMesh.position.set(0, -5, this.waveBasePosition);
+    this.oceanMesh.receiveShadow = true;
+    scene.add(this.oceanMesh);
 
     // Add animated wave texture (simplified)
     const waveGeometry = new THREE.PlaneGeometry(100, 50);
@@ -57,10 +65,10 @@ export class Environment {
       roughness: 0.2,
       metalness: 0.3,
     });
-    const waveMesh = new THREE.Mesh(waveGeometry, waveMaterial);
-    waveMesh.rotation.x = -Math.PI / 2;
-    waveMesh.position.set(0, -4.8, 10);
-    scene.add(waveMesh);
+    this.waveMesh = new THREE.Mesh(waveGeometry, waveMaterial);
+    this.waveMesh.rotation.x = -Math.PI / 2;
+    this.waveMesh.position.set(0, -4.8, this.waveBasePosition);
+    scene.add(this.waveMesh);
 
     // Create rocky cliff beach on the left side
     this.createCliffBeach(scene, physicsWorld);
@@ -206,12 +214,30 @@ export class Environment {
     }
   }
 
-  update(simulationTime: number, deltaTime: number) {
-    // Update tidal cycle
+  update(simulationTime: number, deltaTime: number, realDeltaTime?: number) {
+    // Use real deltaTime for wave animation if provided, otherwise use simulation deltaTime
+    const waveDeltaTime = realDeltaTime !== undefined ? realDeltaTime : deltaTime;
+
+    // Update real-time wave animation (waveDeltaTime is in seconds)
+    this.waveTimer += waveDeltaTime;
+    const wavePhase = (this.waveTimer % this.waveCycleDuration) / this.waveCycleDuration;
+
+    // Sine wave: 0 to 1 to 0 over the cycle (high tide for first half, low tide for second half)
+    const waveOffset = Math.sin(wavePhase * Math.PI * 2) * this.waveAmplitude;
+
+    // Update ocean and wave mesh positions
+    if (this.oceanMesh) {
+      this.oceanMesh.position.z = this.waveBasePosition - waveOffset;
+    }
+    if (this.waveMesh) {
+      this.waveMesh.position.z = this.waveBasePosition - waveOffset;
+    }
+
+    // Update tidal cycle (for tide pool water level)
     const tidalPhase = (simulationTime % this.tidalPeriod) / this.tidalPeriod;
     this.params.tideLevel = 0.5 + 0.5 * Math.sin(tidalPhase * Math.PI * 2);
 
-    // Update water level visually
+    // Update water level visually in tide pool
     if (this.waterMesh) {
       this.waterMesh.position.y = 0.2 + this.params.tideLevel * 0.6;
     }
@@ -225,9 +251,10 @@ export class Environment {
     // Dissolved oxygen inversely related to temperature
     this.params.dissolvedOxygen = 10 - (this.params.temperature - 10) * 0.2;
 
-    // Turbulence relates to tide change rate
+    // Turbulence relates to tide change rate (now also considers real wave movement)
     const tideChangeRate = Math.abs(Math.cos(tidalPhase * Math.PI * 2));
-    this.params.turbulence = 0.2 + tideChangeRate * 0.5;
+    const waveChangeRate = Math.abs(Math.cos(wavePhase * Math.PI * 2));
+    this.params.turbulence = 0.2 + Math.max(tideChangeRate, waveChangeRate) * 0.5;
   }
 
   getTideLevel(): number {
@@ -260,5 +287,6 @@ export class Environment {
       tideLevel: 0.7,
       turbulence: 0.3,
     };
+    this.waveTimer = 0;
   }
 }

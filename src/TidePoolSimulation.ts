@@ -114,7 +114,8 @@ export class TidePoolSimulation {
     this.simulationTime += simDeltaTime / 86400; // Convert seconds to days
 
     // Update environment (tide, temperature, etc.)
-    this.environment.update(this.simulationTime, simDeltaTime);
+    // Pass real deltaTime for wave animation, simDeltaTime for other environmental changes
+    this.environment.update(this.simulationTime, simDeltaTime, deltaTime);
 
     // Update physics
     this.physicsWorld.step(deltaTime);
