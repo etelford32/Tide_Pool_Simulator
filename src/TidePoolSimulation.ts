@@ -3,6 +3,7 @@ import { Renderer } from './rendering/Renderer';
 import { Environment } from './environment/Environment';
 import { OrganismManager } from './organisms/OrganismManager';
 import { UIManager } from './ui/UIManager';
+import { InputHandler } from './input/InputHandler';
 
 export type SimulationMode = 'game' | 'scientific';
 
@@ -12,6 +13,7 @@ export class TidePoolSimulation {
   private environment: Environment;
   private organismManager: OrganismManager;
   private uiManager: UIManager;
+  private inputHandler: InputHandler;
 
   private mode: SimulationMode = 'game';
   private timeScale: number = 1.0; // 1 minute = 1 day in game mode
@@ -27,6 +29,7 @@ export class TidePoolSimulation {
     this.environment = new Environment(this.mode);
     this.organismManager = new OrganismManager(this.physicsWorld, this.environment);
     this.uiManager = new UIManager();
+    this.inputHandler = new InputHandler();
   }
 
   async initialize() {
@@ -92,7 +95,21 @@ export class TidePoolSimulation {
       }, this.renderer.scene);
     }
 
-    console.log(`✓ Spawned initial ecosystem with hermit crabs`);
+    // Add Sea Anemone Home (player's home base)
+    this.organismManager.spawn('sea_anemone_home', {
+      x: 0,
+      y: 0.1,
+      z: 0,
+    }, this.renderer.scene);
+
+    // Add Player-Controlled Clownfish (our hero!)
+    this.organismManager.spawn('clownfish', {
+      x: 0.5,
+      y: 0.5,
+      z: 0.5,
+    }, this.renderer.scene);
+
+    console.log(`✓ Spawned initial ecosystem with clownfish player and anemone home`);
   }
 
   start() {
@@ -131,6 +148,13 @@ export class TidePoolSimulation {
 
     // Update organisms (behavior, metabolism, reproduction)
     this.organismManager.update(simDeltaTime, this.simulationTime);
+
+    // Handle player input for clownfish
+    const playerFish = this.organismManager.getPlayerClownfish();
+    if (playerFish) {
+      const moveDir = this.inputHandler.getMovementDirection();
+      playerFish.setMoveDirection(moveDir.x, moveDir.z);
+    }
 
     // Update UI
     this.updateUI();

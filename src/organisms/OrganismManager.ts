@@ -7,6 +7,8 @@ import { AcornBarnacle } from './species/AcornBarnacle';
 import { Limpet } from './species/Limpet';
 import { OchreSeaStar } from './species/OchreSeaStar';
 import { PacificHermitCrab } from './species/PacificHermitCrab';
+import { Clownfish } from './species/Clownfish';
+import { SeaAnemoneHome } from './species/SeaAnemoneHome';
 
 export interface Position {
   x: number;
@@ -54,6 +56,12 @@ export class OrganismManager {
           scene.add(organism.getShellMesh());
         }
         break;
+      case 'clownfish':
+        organism = new Clownfish(position, this.physicsWorld);
+        break;
+      case 'sea_anemone_home':
+        organism = new SeaAnemoneHome(position, this.physicsWorld);
+        break;
       default:
         console.warn(`Unknown species: ${speciesId}`);
         return null;
@@ -100,6 +108,13 @@ export class OrganismManager {
         if (distance < 0.5) { // Within predation range
           predator.attemptPredation(prey, deltaTime);
         }
+      }
+    }
+
+    // Check for anemone shock damage
+    for (const organism of this.organisms) {
+      if (organism instanceof SeaAnemoneHome) {
+        organism.checkShockDamage(this.organisms, deltaTime);
       }
     }
   }
@@ -155,5 +170,17 @@ export class OrganismManager {
       organism.destroy();
     }
     this.organisms = [];
+  }
+
+  /**
+   * Get the player-controlled clownfish
+   */
+  getPlayerClownfish(): Clownfish | null {
+    for (const organism of this.organisms) {
+      if (organism instanceof Clownfish) {
+        return organism;
+      }
+    }
+    return null;
   }
 }
