@@ -2,8 +2,13 @@ import { TidePoolSimulation } from './TidePoolSimulation';
 
 async function init() {
   try {
-    // Rapier is auto-initialized with ES modules
-    console.log('✓ Rapier physics engine ready');
+    // Dynamically import Rapier to ensure WASM loads properly
+    console.log('✓ Loading Rapier physics engine...');
+    await import('@dimforge/rapier3d');
+
+    // Give WASM a moment to fully initialize
+    await new Promise(resolve => setTimeout(resolve, 100));
+    console.log('✓ Rapier ready');
 
     // Hide loading screen
     const loadingEl = document.getElementById('loading');
