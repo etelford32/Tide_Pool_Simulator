@@ -15,12 +15,11 @@ export class PhysicsWorld {
     console.log('✓ Physics world created');
   }
 
-  step(deltaTime: number) {
+  step(_deltaTime: number) {
     if (!this.world) return;
 
-    // Limit physics step to prevent instability
-    const clampedDelta = Math.min(deltaTime, 0.1);
-    this.world.step(this.eventQueue);
+    // Step physics simulation
+    this.world.step(this.eventQueue || undefined);
   }
 
   createRigidBody(desc: RAPIER.RigidBodyDesc): RAPIER.RigidBody {

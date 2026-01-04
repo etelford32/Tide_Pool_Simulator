@@ -14,15 +14,16 @@ interface EnvironmentParameters {
 
 export class Environment {
   private params: EnvironmentParameters;
-  private mode: SimulationMode;
+  private _mode: SimulationMode;
   private poolMesh: THREE.Mesh | null = null;
   private waterMesh: THREE.Mesh | null = null;
   private oceanMesh: THREE.Mesh | null = null;
   private waveMesh: THREE.Mesh | null = null;
+  private foamParticles: THREE.Points | null = null;
 
   // Tidal parameters
   private tidalPeriod = 0.5; // days (12 hours for semi-diurnal tide)
-  private tidalAmplitude = 0.5; // meters
+  private _tidalAmplitude = 0.5; // meters (reserved for future use)
 
   // Real-time wave animation
   private waveTimer = 0; // seconds
@@ -31,7 +32,7 @@ export class Environment {
   private waveAmplitude = 8; // How far waves move in/out
 
   constructor(mode: SimulationMode) {
-    this.mode = mode;
+    this._mode = mode;
     this.params = {
       temperature: 15, // °C
       salinity: 33, // ppt
@@ -69,6 +70,9 @@ export class Environment {
     this.waveMesh.rotation.x = -Math.PI / 2;
     this.waveMesh.position.set(0, -4.8, this.waveBasePosition);
     scene.add(this.waveMesh);
+
+    // Create foam particles at wave edge
+    this.createFoam(scene);
 
     // Create rocky cliff beach on the left side
     this.createCliffBeach(scene, physicsWorld);
@@ -112,7 +116,7 @@ export class Environment {
     console.log('✓ Tide pool created');
   }
 
-  private createCliffBeach(scene: THREE.Scene, physicsWorld: PhysicsWorld) {
+  private createCliffBeach(scene: THREE.Scene, _physicsWorld: PhysicsWorld) {
     // Create main cliff wall on the left
     const cliffGeometry = new THREE.BoxGeometry(4, 15, 30);
     const cliffMaterial = new THREE.MeshStandardMaterial({
@@ -191,6 +195,37 @@ export class Environment {
     console.log('✓ Cliff beach created');
   }
 
+  private createFoam(scene: THREE.Scene) {
+    // Create foam particles along wave edge
+    const foamCount = 200;
+    const foamGeometry = new THREE.BufferGeometry();
+    const foamPositions = new Float32Array(foamCount * 3);
+
+    // Distribute foam particles along the wave front (horizontal line)
+    for (let i = 0; i < foamCount; i++) {
+      foamPositions[i * 3] = (Math.random() - 0.5) * 100; // X: spread across width
+      foamPositions[i * 3 + 1] = -4.5 + Math.random() * 0.5; // Y: near water surface
+      foamPositions[i * 3 + 2] = (Math.random() - 0.5) * 5; // Z: clustered at wave edge
+    }
+
+    foamGeometry.setAttribute('position', new THREE.BufferAttribute(foamPositions, 3));
+
+    // Create foam material
+    const foamMaterial = new THREE.PointsMaterial({
+      color: 0xffffff,
+      size: 0.3,
+      transparent: true,
+      opacity: 0.8,
+      sizeAttenuation: true,
+    });
+
+    this.foamParticles = new THREE.Points(foamGeometry, foamMaterial);
+    this.foamParticles.position.z = this.waveBasePosition;
+    scene.add(this.foamParticles);
+
+    console.log('✓ Foam particles created');
+  }
+
   private addSubstrateDetails(scene: THREE.Scene) {
     // Add some rocks
     for (let i = 0; i < 8; i++) {
@@ -233,14 +268,20 @@ export class Environment {
       this.waveMesh.position.z = this.waveBasePosition - waveOffset;
     }
 
+    // Calculate wave change rate for turbulence and foam
+    const waveChangeRate = Math.abs(Math.cos(wavePhase * Math.PI * 2));
+
+    // Update foam particles to follow wave
+    if (this.foamParticles) {
+      this.foamParticles.position.z = this.waveBasePosition - waveOffset;
+      // Increase foam opacity during high turbulence
+      const foamMaterial = this.foamParticles.material as THREE.PointsMaterial;
+      foamMaterial.opacity = 0.6 + waveChangeRate * 0.4;
+    }
+
     // Update tidal cycle (for tide pool water level)
     const tidalPhase = (simulationTime % this.tidalPeriod) / this.tidalPeriod;
     this.params.tideLevel = 0.5 + 0.5 * Math.sin(tidalPhase * Math.PI * 2);
-
-    // Update water level visually in tide pool
-    if (this.waterMesh) {
-      this.waterMesh.position.y = 0.2 + this.params.tideLevel * 0.6;
-    }
 
     // Temperature varies with time of day (simplified)
     const dailyCycle = (simulationTime % 1); // 0-1 for one day
@@ -251,9 +292,37 @@ export class Environment {
     // Dissolved oxygen inversely related to temperature
     this.params.dissolvedOxygen = 10 - (this.params.temperature - 10) * 0.2;
 
+    // Update chemical properties visualization in tide pool water
+    if (this.waterMesh) {
+      // Update water level
+      this.waterMesh.position.y = 0.2 + this.params.tideLevel * 0.6;
+
+      // Update water color based on temperature and oxygen
+      const waterMaterial = this.waterMesh.material as THREE.MeshPhysicalMaterial;
+
+      // Temperature affects color: warmer = more green, colder = more blue
+      const tempNormalized = (this.params.temperature - 10) / 10; // 0-1 range
+      const waterColor = new THREE.Color();
+      waterColor.setHSL(0.55 - tempNormalized * 0.1, 0.7, 0.5); // Shift from blue to cyan
+      waterMaterial.color = waterColor;
+
+      // Dissolved oxygen affects clarity/opacity
+      const oxygenNormalized = (this.params.dissolvedOxygen - 4) / 6; // 0-1 range
+      waterMaterial.opacity = 0.5 + oxygenNormalized * 0.2; // More oxygen = clearer
+    }
+
+    // Update ocean water based on salinity and pH
+    if (this.waveMesh) {
+      const waveMaterial = this.waveMesh.material as THREE.MeshPhysicalMaterial;
+      // pH affects wave color slightly (more acidic = slightly greenish)
+      const pHNormalized = (this.params.pH - 7.8) / 0.6; // 0-1 range
+      const waveColor = new THREE.Color();
+      waveColor.setHSL(0.55 + (1 - pHNormalized) * 0.05, 0.8, 0.55);
+      waveMaterial.color = waveColor;
+    }
+
     // Turbulence relates to tide change rate (now also considers real wave movement)
     const tideChangeRate = Math.abs(Math.cos(tidalPhase * Math.PI * 2));
-    const waveChangeRate = Math.abs(Math.cos(wavePhase * Math.PI * 2));
     this.params.turbulence = 0.2 + Math.max(tideChangeRate, waveChangeRate) * 0.5;
   }
 
@@ -269,13 +338,21 @@ export class Environment {
     return { ...this.params };
   }
 
+  getMode(): SimulationMode {
+    return this._mode;
+  }
+
+  getTidalAmplitude(): number {
+    return this._tidalAmplitude;
+  }
+
   isSubmerged(position: THREE.Vector3): boolean {
     const waterLevel = 0.2 + this.params.tideLevel * 0.6;
     return position.y < waterLevel;
   }
 
   setMode(mode: SimulationMode) {
-    this.mode = mode;
+    this._mode = mode;
   }
 
   reset() {

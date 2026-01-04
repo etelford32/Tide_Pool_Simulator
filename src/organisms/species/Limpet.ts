@@ -58,7 +58,7 @@ export class Limpet extends Organism {
     return mesh;
   }
 
-  protected metabolize(deltaTime: number, env: EnvironmentParameters) {
+  protected metabolize(deltaTime: number, _env: EnvironmentParameters) {
     // Grazes on algae film (simplified - just gains energy slowly)
     const grazingRate = 1.0;
     this.energy += (grazingRate * deltaTime) / 86400;

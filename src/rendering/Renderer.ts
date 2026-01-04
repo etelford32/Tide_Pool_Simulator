@@ -57,8 +57,6 @@ export class Renderer {
     const sunGeometry = new THREE.SphereGeometry(2, 32, 32);
     const sunMaterial = new THREE.MeshBasicMaterial({
       color: 0xffff00,
-      emissive: 0xffaa00,
-      emissiveIntensity: 1,
     });
     this.sunMesh = new THREE.Mesh(sunGeometry, sunMaterial);
     this.sunMesh.position.set(10, 20, 5);

@@ -58,7 +58,7 @@ export class OchreSeaStar extends Organism {
     return mesh;
   }
 
-  protected metabolize(deltaTime: number, env: EnvironmentParameters) {
+  protected metabolize(deltaTime: number, _env: EnvironmentParameters) {
     // Sea stars have higher metabolism
     this.energy -= (this.metabolismRate * deltaTime) / 86400;
 

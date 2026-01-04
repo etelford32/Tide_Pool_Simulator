@@ -1,11 +1,9 @@
-import RAPIER from '@dimforge/rapier3d';
 import { TidePoolSimulation } from './TidePoolSimulation';
 
 async function init() {
   try {
-    // Initialize Rapier physics engine
-    await RAPIER.init();
-    console.log('✓ Rapier physics engine initialized');
+    // Rapier is auto-initialized with ES modules
+    console.log('✓ Rapier physics engine ready');
 
     // Hide loading screen
     const loadingEl = document.getElementById('loading');

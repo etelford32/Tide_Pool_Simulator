@@ -138,11 +138,11 @@ export abstract class Organism {
     return false;
   }
 
-  isPrey(speciesId: string): boolean {
+  isPrey(_speciesId: string): boolean {
     return false;
   }
 
-  attemptPredation(prey: Organism, deltaTime: number): boolean {
+  attemptPredation(_prey: Organism, _deltaTime: number): boolean {
     return false;
   }
 
@@ -151,7 +151,7 @@ export abstract class Organism {
   }
 
   // Reproduction
-  checkReproduction(currentTime: number): Organism | null {
+  checkReproduction(_currentTime: number): Organism | null {
     // Override in subclasses
     return null;
   }
