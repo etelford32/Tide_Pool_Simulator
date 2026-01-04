@@ -53,7 +53,7 @@ export class TidePoolSimulation {
         x: Math.random() * 8 - 4,
         y: 0.1,
         z: Math.random() * 8 - 4,
-      });
+      }, this.renderer.scene);
     }
 
     // Add barnacles (filter feeders)
@@ -62,7 +62,7 @@ export class TidePoolSimulation {
         x: Math.random() * 8 - 4,
         y: 0.1,
         z: Math.random() * 8 - 4,
-      });
+      }, this.renderer.scene);
     }
 
     // Add limpets (herbivores)
@@ -71,7 +71,7 @@ export class TidePoolSimulation {
         x: Math.random() * 8 - 4,
         y: 0.2,
         z: Math.random() * 8 - 4,
-      });
+      }, this.renderer.scene);
     }
 
     // Add sea stars (predators)
@@ -80,10 +80,19 @@ export class TidePoolSimulation {
         x: Math.random() * 6 - 3,
         y: 0.3,
         z: Math.random() * 6 - 3,
-      });
+      }, this.renderer.scene);
     }
 
-    console.log(`✓ Spawned initial ecosystem`);
+    // Add hermit crabs (smart scavengers)
+    for (let i = 0; i < 5; i++) {
+      this.organismManager.spawn('pacific_hermit_crab', {
+        x: Math.random() * 6 - 3,
+        y: 0.15,
+        z: Math.random() * 6 - 3,
+      }, this.renderer.scene);
+    }
+
+    console.log(`✓ Spawned initial ecosystem with hermit crabs`);
   }
 
   start() {

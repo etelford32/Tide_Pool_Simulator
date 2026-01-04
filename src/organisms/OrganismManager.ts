@@ -1,3 +1,4 @@
+import * as THREE from 'three';
 import { PhysicsWorld } from '../physics/PhysicsWorld';
 import { Environment } from '../environment/Environment';
 import { Organism } from './Organism';
@@ -5,6 +6,7 @@ import { SeaLettuce } from './species/SeaLettuce';
 import { AcornBarnacle } from './species/AcornBarnacle';
 import { Limpet } from './species/Limpet';
 import { OchreSeaStar } from './species/OchreSeaStar';
+import { PacificHermitCrab } from './species/PacificHermitCrab';
 
 export interface Position {
   x: number;
@@ -29,7 +31,7 @@ export class OrganismManager {
     this.environment = environment;
   }
 
-  spawn(speciesId: string, position: Position): Organism | null {
+  spawn(speciesId: string, position: Position, scene?: THREE.Scene): Organism | null {
     let organism: Organism | null = null;
 
     switch (speciesId) {
@@ -44,6 +46,13 @@ export class OrganismManager {
         break;
       case 'ochre_sea_star':
         organism = new OchreSeaStar(position, this.physicsWorld);
+        break;
+      case 'pacific_hermit_crab':
+        organism = new PacificHermitCrab(position, this.physicsWorld);
+        // Add shell mesh to scene for hermit crabs
+        if (scene && organism instanceof PacificHermitCrab) {
+          scene.add(organism.getShellMesh());
+        }
         break;
       default:
         console.warn(`Unknown species: ${speciesId}`);
