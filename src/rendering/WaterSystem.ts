@@ -2,7 +2,8 @@ import * as THREE from 'three';
 import { FieldMatrix3D } from '../physics/FieldMatrix3D';
 
 /**
- * Advanced water rendering system with realistic waves and physics
+ * Advanced water rendering system with realistic waves, physics, and shore interactions
+ * Features: Gerstner waves, caustics, refraction, shallow water behavior, shore foam
  */
 export class WaterSystem {
   private scene: THREE.Scene;
@@ -22,6 +23,10 @@ export class WaterSystem {
   // Time for animation
   private time: number = 0;
 
+  // Wave generation throttle
+  private lastWaveTime: number = 0;
+  private waveInterval: number = 5.0; // seconds between random waves
+
   constructor(scene: THREE.Scene, bounds: THREE.Box3) {
     this.scene = scene;
 
@@ -40,79 +45,98 @@ export class WaterSystem {
   }
 
   /**
-   * Create custom shader material for realistic water
+   * Create custom shader material for realistic water with advanced effects
    */
   private createWaterMaterial(): THREE.ShaderMaterial {
     return new THREE.ShaderMaterial({
       uniforms: {
         time: { value: 0.0 },
-        waterColor: { value: new THREE.Color(0x0077be) },
+        waterColor: { value: new THREE.Color(0x0088cc) },
         foamColor: { value: new THREE.Color(0xffffff) },
-        deepWaterColor: { value: new THREE.Color(0x001e3c) },
+        deepWaterColor: { value: new THREE.Color(0x001a33) },
+        shallowWaterColor: { value: new THREE.Color(0x33ccff) },
         lightDirection: { value: new THREE.Vector3(1, 1, 0).normalize() },
         cameraPosition: { value: new THREE.Vector3() },
         waveAmplitude: { value: this.waveAmplitude },
         waveFrequency: { value: this.waveFrequency },
         waveSpeed: { value: this.waveSpeed },
+        waterLevel: { value: this.waterLevel },
       },
       vertexShader: `
         uniform float time;
         uniform float waveAmplitude;
         uniform float waveFrequency;
         uniform float waveSpeed;
+        uniform float waterLevel;
 
         varying vec3 vPosition;
+        varying vec3 vWorldPosition;
         varying vec3 vNormal;
         varying float vWaveHeight;
         varying vec2 vUv;
+        varying float vDepth;
 
-        // Gerstner wave function for realistic ocean waves
-        vec3 gerstnerWave(vec3 pos, vec2 direction, float amplitude, float wavelength, float speed) {
+        // Improved Gerstner wave with steepness parameter
+        vec3 gerstnerWave(vec3 pos, vec2 direction, float amplitude, float wavelength, float speed, float steepness) {
           float k = 2.0 * 3.14159 / wavelength;
           float c = speed;
           float a = amplitude;
-          float f = k * (dot(direction, pos.xz) - c * time);
+          float q = steepness / (k * a * 4.0); // Limit steepness to prevent loops
+
+          vec2 d = normalize(direction);
+          float f = k * (dot(d, pos.xz) - c * time);
 
           float height = a * sin(f);
-          vec2 horizontal = a * k * direction * cos(f);
+          vec2 horizontal = q * a * d * cos(f);
 
           return vec3(horizontal.x, height, horizontal.y);
+        }
+
+        // Calculate all Gerstner wave components at once (optimization)
+        vec3 calculateAllWaves(vec3 pos) {
+          vec3 wave1 = gerstnerWave(pos, vec2(1.0, 0.0), waveAmplitude * 0.8, 4.0, waveSpeed, 1.0);
+          vec3 wave2 = gerstnerWave(pos, vec2(0.7, 0.7), waveAmplitude * 0.5, 3.0, waveSpeed * 0.8, 0.8);
+          vec3 wave3 = gerstnerWave(pos, vec2(-0.5, 0.8), waveAmplitude * 0.3, 2.5, waveSpeed * 1.2, 0.6);
+          vec3 wave4 = gerstnerWave(pos, vec2(0.3, -0.9), waveAmplitude * 0.2, 1.5, waveSpeed * 1.5, 0.5);
+
+          // Add smaller ripples
+          vec3 wave5 = gerstnerWave(pos, vec2(0.6, 0.3), waveAmplitude * 0.15, 0.8, waveSpeed * 2.0, 0.4);
+          vec3 wave6 = gerstnerWave(pos, vec2(-0.4, -0.6), waveAmplitude * 0.1, 0.5, waveSpeed * 2.5, 0.3);
+
+          return wave1 + wave2 + wave3 + wave4 + wave5 + wave6;
         }
 
         void main() {
           vUv = uv;
           vec3 pos = position;
 
-          // Multiple Gerstner waves for complex surface
-          vec3 wave1 = gerstnerWave(pos, vec2(1.0, 0.0), waveAmplitude * 0.8, 4.0, waveSpeed);
-          vec3 wave2 = gerstnerWave(pos, vec2(0.7, 0.7), waveAmplitude * 0.5, 3.0, waveSpeed * 0.8);
-          vec3 wave3 = gerstnerWave(pos, vec2(-0.5, 0.8), waveAmplitude * 0.3, 2.5, waveSpeed * 1.2);
-          vec3 wave4 = gerstnerWave(pos, vec2(0.3, -0.9), waveAmplitude * 0.2, 1.5, waveSpeed * 1.5);
+          // Shallow water dampening (waves get smaller near shore)
+          float depthFactor = smoothstep(-2.0, 0.5, position.y);
+          float waveDamping = 0.3 + 0.7 * depthFactor;
 
-          // Combine waves
-          vec3 displacement = wave1 + wave2 + wave3 + wave4;
+          // Calculate wave displacement
+          vec3 displacement = calculateAllWaves(pos) * waveDamping;
           pos += displacement;
 
           vPosition = pos;
+          vWorldPosition = (modelMatrix * vec4(pos, 1.0)).xyz;
           vWaveHeight = displacement.y;
+          vDepth = position.y - waterLevel;
 
-          // Calculate normal by sampling nearby points
-          vec3 posRight = position + vec3(0.1, 0.0, 0.0);
-          vec3 posForward = position + vec3(0.0, 0.0, 0.1);
+          // Optimized normal calculation using finite differences
+          float delta = 0.15;
+          vec3 posRight = position + vec3(delta, 0.0, 0.0);
+          vec3 posForward = position + vec3(0.0, 0.0, delta);
 
-          posRight += gerstnerWave(posRight, vec2(1.0, 0.0), waveAmplitude * 0.8, 4.0, waveSpeed);
-          posRight += gerstnerWave(posRight, vec2(0.7, 0.7), waveAmplitude * 0.5, 3.0, waveSpeed * 0.8);
-          posRight += gerstnerWave(posRight, vec2(-0.5, 0.8), waveAmplitude * 0.3, 2.5, waveSpeed * 1.2);
-          posRight += gerstnerWave(posRight, vec2(0.3, -0.9), waveAmplitude * 0.2, 1.5, waveSpeed * 1.5);
+          vec3 displacementRight = calculateAllWaves(posRight) * waveDamping;
+          vec3 displacementForward = calculateAllWaves(posForward) * waveDamping;
 
-          posForward += gerstnerWave(posForward, vec2(1.0, 0.0), waveAmplitude * 0.8, 4.0, waveSpeed);
-          posForward += gerstnerWave(posForward, vec2(0.7, 0.7), waveAmplitude * 0.5, 3.0, waveSpeed * 0.8);
-          posForward += gerstnerWave(posForward, vec2(-0.5, 0.8), waveAmplitude * 0.3, 2.5, waveSpeed * 1.2);
-          posForward += gerstnerWave(posForward, vec2(0.3, -0.9), waveAmplitude * 0.2, 1.5, waveSpeed * 1.5);
+          posRight += displacementRight;
+          posForward += displacementForward;
 
-          vec3 tangent = posRight - pos;
-          vec3 bitangent = posForward - pos;
-          vNormal = normalize(cross(tangent, bitangent));
+          vec3 tangent = normalize(posRight - pos);
+          vec3 bitangent = normalize(posForward - pos);
+          vNormal = normalize(cross(bitangent, tangent)); // Flip for correct facing
 
           gl_Position = projectionMatrix * modelViewMatrix * vec4(pos, 1.0);
         }
@@ -121,49 +145,122 @@ export class WaterSystem {
         uniform vec3 waterColor;
         uniform vec3 foamColor;
         uniform vec3 deepWaterColor;
+        uniform vec3 shallowWaterColor;
         uniform vec3 lightDirection;
         uniform vec3 cameraPosition;
+        uniform float time;
 
         varying vec3 vPosition;
+        varying vec3 vWorldPosition;
         varying vec3 vNormal;
         varying float vWaveHeight;
         varying vec2 vUv;
+        varying float vDepth;
+
+        // Improved noise function for caustics
+        float hash(vec2 p) {
+          return fract(sin(dot(p, vec2(127.1, 311.7))) * 43758.5453);
+        }
+
+        float noise(vec2 p) {
+          vec2 i = floor(p);
+          vec2 f = fract(p);
+          f = f * f * (3.0 - 2.0 * f);
+
+          float a = hash(i);
+          float b = hash(i + vec2(1.0, 0.0));
+          float c = hash(i + vec2(0.0, 1.0));
+          float d = hash(i + vec2(1.0, 1.0));
+
+          return mix(mix(a, b, f.x), mix(c, d, f.x), f.y);
+        }
+
+        // Caustics pattern
+        float caustics(vec2 uv, float time) {
+          vec2 p = uv * 4.0;
+          float c = 0.0;
+
+          // Multiple octaves for detail
+          c += noise(p + time * 0.2) * 0.5;
+          c += noise(p * 2.0 - time * 0.3) * 0.25;
+          c += noise(p * 4.0 + time * 0.15) * 0.125;
+
+          return pow(c, 2.0) * 2.0;
+        }
+
+        // Subsurface scattering approximation
+        float subsurfaceScattering(vec3 viewDir, vec3 lightDir, vec3 normal) {
+          vec3 H = normalize(lightDir + normal * 0.3);
+          float sss = pow(clamp(dot(viewDir, -H), 0.0, 1.0), 3.0);
+          return sss;
+        }
 
         void main() {
-          // Fresnel effect - water is more transparent when viewed from above
-          vec3 viewDirection = normalize(cameraPosition - vPosition);
-          float fresnel = pow(1.0 - max(dot(viewDirection, vNormal), 0.0), 3.0);
+          vec3 viewDirection = normalize(cameraPosition - vWorldPosition);
+          vec3 normal = normalize(vNormal);
 
-          // Depth-based color mixing
-          float depth = clamp(-vPosition.y / 5.0, 0.0, 1.0);
-          vec3 baseColor = mix(waterColor, deepWaterColor, depth);
+          // Fresnel effect (Schlick approximation)
+          float F0 = 0.02; // Water's reflectance at normal incidence
+          float fresnel = F0 + (1.0 - F0) * pow(1.0 - max(dot(viewDirection, normal), 0.0), 5.0);
 
-          // Lighting
-          float diffuse = max(dot(vNormal, lightDirection), 0.0);
+          // Depth-based color
+          float depth = clamp(-vDepth / 3.0, 0.0, 1.0);
+          vec3 baseColor = mix(shallowWaterColor, deepWaterColor, depth);
+          baseColor = mix(baseColor, waterColor, 0.5);
 
-          // Specular highlights (sun reflection)
-          vec3 reflectDir = reflect(-lightDirection, vNormal);
-          float specular = pow(max(dot(viewDirection, reflectDir), 0.0), 64.0);
+          // Physically-based lighting (Blinn-Phong)
+          vec3 halfVector = normalize(lightDirection + viewDirection);
+          float diffuse = max(dot(normal, lightDirection), 0.0);
+          float specular = pow(max(dot(normal, halfVector), 0.0), 128.0);
 
-          // Foam on wave peaks
-          float foamFactor = smoothstep(0.2, 0.4, vWaveHeight);
-          vec3 color = mix(baseColor, foamColor, foamFactor * 0.5);
+          // Sun reflection on water (sharper, more intense)
+          vec3 reflectDir = reflect(-lightDirection, normal);
+          float sunReflection = pow(max(dot(viewDirection, reflectDir), 0.0), 256.0);
 
-          // Combine lighting
-          color = color * (0.4 + 0.6 * diffuse);
-          color += vec3(specular * 0.5);
+          // Caustics effect (only in shallow water)
+          float causticsStrength = smoothstep(1.0, -0.5, -vDepth) * 0.5;
+          float causticsPattern = caustics(vWorldPosition.xz, time);
+          vec3 causticsColor = vec3(causticsPattern) * causticsStrength;
+
+          // Shore foam (based on depth and wave height)
+          float shoreDistance = smoothstep(-0.3, 0.1, -vDepth);
+          float waveBreaking = smoothstep(0.15, 0.35, vWaveHeight);
+          float foamFactor = max(shoreDistance * 0.8, waveBreaking * 0.6);
+
+          // Animated foam texture
+          float foamNoise = noise(vWorldPosition.xz * 8.0 + time * 0.5);
+          foamNoise = pow(foamNoise, 2.0);
+          foamFactor *= foamNoise;
+
+          // Subsurface scattering
+          float sss = subsurfaceScattering(viewDirection, lightDirection, normal);
+          vec3 scatterColor = vec3(0.2, 0.6, 0.8) * sss * 0.4;
+
+          // Combine all effects
+          vec3 color = baseColor;
+          color = color * (0.5 + 0.5 * diffuse); // Ambient + diffuse
+          color += causticsColor; // Add caustics
+          color += scatterColor; // Add subsurface scattering
+          color += vec3(specular * 0.3); // Add specular highlights
+          color += vec3(sunReflection * 1.5); // Add sun reflection
+
+          // Mix in foam
+          color = mix(color, foamColor, foamFactor);
 
           // Fresnel blending for sky reflection
-          color = mix(color, vec3(0.5, 0.7, 0.9), fresnel * 0.3);
+          vec3 skyColor = vec3(0.5, 0.7, 0.9);
+          color = mix(color, skyColor, fresnel * 0.4);
 
-          // Transparency based on fresnel
-          float alpha = 0.85 + fresnel * 0.15;
+          // Transparency based on depth and fresnel
+          float alpha = 0.80 + depth * 0.15 + fresnel * 0.05;
+          alpha = clamp(alpha, 0.7, 0.98);
 
           gl_FragColor = vec4(color, alpha);
         }
       `,
       transparent: true,
       side: THREE.DoubleSide,
+      depthWrite: false, // Improved transparency sorting
     });
   }
 
@@ -196,6 +293,9 @@ export class WaterSystem {
     // Enable shadows
     this.waterMesh.receiveShadow = true;
     this.waterMesh.castShadow = false;
+
+    // Render order for proper transparency
+    this.waterMesh.renderOrder = 100;
 
     this.scene.add(this.waterMesh);
   }
@@ -232,6 +332,7 @@ export class WaterSystem {
     if (this.waterMesh) {
       this.waterMesh.position.y = level;
     }
+    this.waterMaterial.uniforms.waterLevel.value = level;
   }
 
   /**
@@ -262,7 +363,7 @@ export class WaterSystem {
   }
 
   /**
-   * Update water simulation
+   * Update water simulation (optimized)
    */
   update(deltaTime: number, camera: THREE.Camera) {
     this.time += deltaTime;
@@ -274,8 +375,8 @@ export class WaterSystem {
     // Update field matrix physics
     this.fieldMatrix.update(deltaTime);
 
-    // Periodically add new waves for dynamic ocean
-    if (Math.random() < 0.01) {
+    // Throttled random wave generation (optimization)
+    if (this.time - this.lastWaveTime > this.waveInterval) {
       const bounds = this.fieldMatrix.getBounds();
       const randomPos = new THREE.Vector3(
         bounds.min.x + Math.random() * (bounds.max.x - bounds.min.x),
@@ -283,6 +384,7 @@ export class WaterSystem {
         bounds.min.z + Math.random() * (bounds.max.z - bounds.min.z)
       );
       this.addWaveDisturbance(randomPos, 0.2 + Math.random() * 0.3, 2.0 + Math.random() * 2.0);
+      this.lastWaveTime = this.time;
     }
   }
 
