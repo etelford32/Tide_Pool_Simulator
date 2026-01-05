@@ -39,8 +39,21 @@ export class CameraInputHandler {
 
     this.keys.set(event.key.toLowerCase(), true);
 
-    // Space to reset camera
-    if (event.key === ' ') {
+    // Toggle camera mode with C key
+    if (event.key.toLowerCase() === 'c') {
+      event.preventDefault();
+      const currentMode = this.cameraController.getMode();
+      if (currentMode === 'orbit') {
+        this.cameraController.setMode('freefly');
+        console.log('📷 Switched to FREE-FLY mode (FPS controls)');
+      } else {
+        this.cameraController.setMode('orbit');
+        console.log('📷 Switched to ORBIT mode');
+      }
+    }
+
+    // Space to reset camera (orbit mode only)
+    if (event.key === ' ' && this.cameraController.getMode() === 'orbit') {
       event.preventDefault();
       this.cameraController.applyPreset('default');
     }
@@ -66,7 +79,15 @@ export class CameraInputHandler {
   }
 
   private onMouseMove(event: MouseEvent) {
-    this.cameraController.onMouseMove(event);
+    // In free-fly mode, use mouse movement for camera rotation
+    if (this.cameraController.getMode() === 'freefly' && this.isKeyPressed('shift')) {
+      const deltaX = event.movementX || 0;
+      const deltaY = event.movementY || 0;
+      this.cameraController.rotateFreefly(deltaX, deltaY);
+    } else {
+      // Orbit mode - use existing drag behavior
+      this.cameraController.onMouseMove(event);
+    }
   }
 
   private onMouseUp(_event: MouseEvent) {
@@ -86,45 +107,69 @@ export class CameraInputHandler {
    * Update camera based on keyboard input (call every frame)
    */
   update(_deltaTime: number) {
+    const mode = this.cameraController.getMode();
     const fastMode = this.isKeyPressed('shift');
     const speed = fastMode ? this.fastModifier : 1.0;
 
-    // Pan controls (WASD or Arrow keys)
-    if (this.isKeyPressed('w') || this.isKeyPressed('arrowup')) {
-      this.cameraController.pan(0, this.keyPanSpeed * speed);
-    }
-    if (this.isKeyPressed('s') || this.isKeyPressed('arrowdown')) {
-      this.cameraController.pan(0, -this.keyPanSpeed * speed);
-    }
-    if (this.isKeyPressed('a') || this.isKeyPressed('arrowleft')) {
-      this.cameraController.pan(-this.keyPanSpeed * speed, 0);
-    }
-    if (this.isKeyPressed('d') || this.isKeyPressed('arrowright')) {
-      this.cameraController.pan(this.keyPanSpeed * speed, 0);
-    }
+    if (mode === 'freefly') {
+      // Free-fly mode - FPS controls
+      let forward = 0;
+      let right = 0;
+      let up = 0;
 
-    // Orbit controls (Q/E for horizontal rotation)
-    if (this.isKeyPressed('q')) {
-      this.cameraController.orbit(-this.keyRotateSpeed * speed, 0);
-    }
-    if (this.isKeyPressed('e')) {
-      this.cameraController.orbit(this.keyRotateSpeed * speed, 0);
-    }
+      // WASD movement
+      if (this.isKeyPressed('w') || this.isKeyPressed('arrowup')) forward += 1;
+      if (this.isKeyPressed('s') || this.isKeyPressed('arrowdown')) forward -= 1;
+      if (this.isKeyPressed('a') || this.isKeyPressed('arrowleft')) right -= 1;
+      if (this.isKeyPressed('d') || this.isKeyPressed('arrowright')) right += 1;
 
-    // Vertical orbit (R/F)
-    if (this.isKeyPressed('r')) {
-      this.cameraController.orbit(0, this.keyRotateSpeed * speed);
-    }
-    if (this.isKeyPressed('f')) {
-      this.cameraController.orbit(0, -this.keyRotateSpeed * speed);
-    }
+      // Vertical movement (Space = up, Ctrl = down)
+      if (this.isKeyPressed(' ')) up += 1;
+      if (this.isKeyPressed('control')) up -= 1;
 
-    // Zoom (Z/X)
-    if (this.isKeyPressed('z')) {
-      this.cameraController.zoom(-50 * speed);
-    }
-    if (this.isKeyPressed('x')) {
-      this.cameraController.zoom(50 * speed);
+      // Apply movement
+      if (forward !== 0 || right !== 0 || up !== 0) {
+        this.cameraController.moveFreefly(forward * speed, right * speed, up * speed);
+      }
+    } else {
+      // Orbit mode - existing controls
+      // Pan controls (WASD or Arrow keys)
+      if (this.isKeyPressed('w') || this.isKeyPressed('arrowup')) {
+        this.cameraController.pan(0, this.keyPanSpeed * speed);
+      }
+      if (this.isKeyPressed('s') || this.isKeyPressed('arrowdown')) {
+        this.cameraController.pan(0, -this.keyPanSpeed * speed);
+      }
+      if (this.isKeyPressed('a') || this.isKeyPressed('arrowleft')) {
+        this.cameraController.pan(-this.keyPanSpeed * speed, 0);
+      }
+      if (this.isKeyPressed('d') || this.isKeyPressed('arrowright')) {
+        this.cameraController.pan(this.keyPanSpeed * speed, 0);
+      }
+
+      // Orbit controls (Q/E for horizontal rotation)
+      if (this.isKeyPressed('q')) {
+        this.cameraController.orbit(-this.keyRotateSpeed * speed, 0);
+      }
+      if (this.isKeyPressed('e')) {
+        this.cameraController.orbit(this.keyRotateSpeed * speed, 0);
+      }
+
+      // Vertical orbit (R/F)
+      if (this.isKeyPressed('r')) {
+        this.cameraController.orbit(0, this.keyRotateSpeed * speed);
+      }
+      if (this.isKeyPressed('f')) {
+        this.cameraController.orbit(0, -this.keyRotateSpeed * speed);
+      }
+
+      // Zoom (Z/X)
+      if (this.isKeyPressed('z')) {
+        this.cameraController.zoom(-50 * speed);
+      }
+      if (this.isKeyPressed('x')) {
+        this.cameraController.zoom(50 * speed);
+      }
     }
   }
 

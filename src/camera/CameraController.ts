@@ -23,6 +23,13 @@ export class CameraController {
   private elevation: number = 30; // degrees
   private roll: number = 0;
 
+  // Free-fly mode state
+  private yaw: number = 0; // degrees (horizontal rotation)
+  private pitch: number = 0; // degrees (vertical rotation)
+  private velocity: THREE.Vector3 = new THREE.Vector3();
+  private moveSpeed: number = 10; // units per second
+  private lookSpeed: number = 0.2; // degrees per pixel
+
   // Transition interpolation
   private targetState: CameraState | null = null;
   private transitionProgress: number = 1.0;
@@ -119,6 +126,73 @@ export class CameraController {
     // Move target
     this.targetTarget.addScaledVector(right, -deltaX * this.panSpeed * this.distance);
     this.targetTarget.addScaledVector(up, deltaY * this.panSpeed * this.distance);
+  }
+
+  /**
+   * Move camera in free-fly mode (FPS style)
+   * @param direction - normalized direction vector in camera space
+   */
+  moveFreefly(forward: number, right: number, up: number) {
+    if (this.mode !== 'freefly') return;
+
+    // Calculate camera's forward and right vectors
+    const yawRad = THREE.MathUtils.degToRad(this.yaw);
+    const forwardVec = new THREE.Vector3(
+      Math.sin(yawRad),
+      0,
+      Math.cos(yawRad)
+    );
+    const rightVec = new THREE.Vector3(
+      Math.cos(yawRad),
+      0,
+      -Math.sin(yawRad)
+    );
+    const upVec = new THREE.Vector3(0, 1, 0);
+
+    // Apply movement to velocity
+    this.velocity.add(forwardVec.multiplyScalar(forward * this.moveSpeed));
+    this.velocity.add(rightVec.multiplyScalar(right * this.moveSpeed));
+    this.velocity.add(upVec.multiplyScalar(up * this.moveSpeed));
+  }
+
+  /**
+   * Rotate camera in free-fly mode (mouse look)
+   */
+  rotateFreefly(deltaX: number, deltaY: number) {
+    if (this.mode !== 'freefly') return;
+
+    this.yaw += deltaX * this.lookSpeed;
+    this.pitch -= deltaY * this.lookSpeed;
+
+    // Clamp pitch to prevent gimbal lock
+    this.pitch = Math.max(-89, Math.min(89, this.pitch));
+  }
+
+  /**
+   * Update camera position/rotation for free-fly mode
+   */
+  private updateFreeflyPosition(deltaTime: number) {
+    // Apply velocity to position
+    const movement = this.velocity.clone().multiplyScalar(deltaTime);
+    this.camera.position.add(movement);
+
+    // Apply damping to velocity
+    this.velocity.multiplyScalar(0.85);
+
+    // Update camera rotation based on yaw and pitch
+    const yawRad = THREE.MathUtils.degToRad(this.yaw);
+    const pitchRad = THREE.MathUtils.degToRad(this.pitch);
+
+    // Calculate look direction
+    const lookDir = new THREE.Vector3(
+      Math.sin(yawRad) * Math.cos(pitchRad),
+      Math.sin(pitchRad),
+      Math.cos(yawRad) * Math.cos(pitchRad)
+    );
+
+    // Update camera rotation to look in that direction
+    const lookAt = this.camera.position.clone().add(lookDir);
+    this.camera.lookAt(lookAt);
   }
 
   /**
@@ -312,13 +386,18 @@ export class CameraController {
       return;
     }
 
-    // Smooth damping
-    this.distance = THREE.MathUtils.lerp(this.distance, this.targetDistance, this.dampingFactor);
-    this.azimuth = THREE.MathUtils.lerp(this.azimuth, this.targetAzimuth, this.dampingFactor);
-    this.elevation = THREE.MathUtils.lerp(this.elevation, this.targetElevation, this.dampingFactor);
-    this.target.lerp(this.targetTarget, this.dampingFactor);
+    // Handle different camera modes
+    if (this.mode === 'freefly') {
+      this.updateFreeflyPosition(deltaTime);
+    } else {
+      // Orbit mode - smooth damping
+      this.distance = THREE.MathUtils.lerp(this.distance, this.targetDistance, this.dampingFactor);
+      this.azimuth = THREE.MathUtils.lerp(this.azimuth, this.targetAzimuth, this.dampingFactor);
+      this.elevation = THREE.MathUtils.lerp(this.elevation, this.targetElevation, this.dampingFactor);
+      this.target.lerp(this.targetTarget, this.dampingFactor);
 
-    this.updateCameraPosition();
+      this.updateCameraPosition();
+    }
   }
 
   /**

@@ -292,6 +292,23 @@ export class TidePoolSimulation {
         }
       });
     }
+
+    // Camera mode toggle
+    const toggleModeBtn = document.getElementById('toggle-camera-mode');
+    if (toggleModeBtn) {
+      toggleModeBtn.addEventListener('click', () => {
+        const currentMode = this.cameraController!.getMode();
+        if (currentMode === 'orbit') {
+          this.cameraController!.setMode('freefly');
+          toggleModeBtn.textContent = '🔄 Switch to Orbit';
+          console.log('📷 FREE-FLY mode: WASD=Move, Shift+Mouse=Look, Space/Ctrl=Up/Down');
+        } else {
+          this.cameraController!.setMode('orbit');
+          toggleModeBtn.textContent = '🔄 Switch to Free-Fly';
+          console.log('📷 ORBIT mode: Drag=Rotate, WASD=Pan');
+        }
+      });
+    }
   }
 
   togglePause(): boolean {
