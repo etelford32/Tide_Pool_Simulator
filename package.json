@@ -1,6 +1,6 @@
 {
   "name": "tide-pool-simulator",
-  "version": "0.1.0",
+  "version": "0.1.1",
   "description": "A realistic tide pool ecosystem simulation with physics-based interactions and biological accuracy",
   "type": "module",
   "scripts": {

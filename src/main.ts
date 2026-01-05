@@ -3,15 +3,25 @@ import RAPIER from '@dimforge/rapier3d';
 
 async function init() {
   try {
-    console.log('Initializing Rapier physics engine...');
+    console.log('[INIT] Starting tide pool simulator v0.1.1');
+    console.log('[RAPIER] Checking module...', typeof RAPIER);
+    console.log('[RAPIER] World constructor:', typeof RAPIER.World);
+    console.log('[RAPIER] Module keys:', Object.keys(RAPIER).slice(0, 10));
 
-    // RAPIER ES module auto-loads WASM
-    // Just verify it's available
-    if (!RAPIER.World) {
-      throw new Error('Rapier module not loaded correctly');
+    // Test WASM is actually loaded by trying to create a world
+    try {
+      console.log('[RAPIER] Attempting to create test world...');
+      const testWorld = new RAPIER.World({ x: 0, y: -9.81, z: 0 });
+      console.log('[RAPIER] ✓ Test world created successfully!');
+      testWorld.free();
+      console.log('[RAPIER] ✓ Test world freed');
+    } catch (e) {
+      console.error('[RAPIER] ✗ Failed to create test world:', e);
+      console.error('[RAPIER] Error details:', e instanceof Error ? e.message : String(e));
+      throw e;
     }
 
-    console.log('✓ Rapier physics engine ready');
+    console.log('[INIT] ✓ Rapier physics engine ready');
 
     // Hide loading screen
     const loadingEl = document.getElementById('loading');
