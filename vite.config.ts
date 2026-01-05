@@ -4,10 +4,7 @@ import topLevelAwait from 'vite-plugin-top-level-await'
 
 export default defineConfig({
   base: './',
-  plugins: [
-    wasm(),
-    topLevelAwait()
-  ],
+  plugins: [wasm(), topLevelAwait()],
   build: {
     target: 'esnext',
     outDir: 'dist',
@@ -17,12 +14,12 @@ export default defineConfig({
   server: {
     port: 3000,
     open: true,
+    headers: {
+      'Cross-Origin-Opener-Policy': 'same-origin',
+      'Cross-Origin-Embedder-Policy': 'require-corp',
+    }
   },
   optimizeDeps: {
     exclude: ['@dimforge/rapier3d']
-  },
-  worker: {
-    format: 'es',
-    plugins: () => [wasm(), topLevelAwait()]
   }
 })

@@ -1,34 +1,17 @@
 import { TidePoolSimulation } from './TidePoolSimulation';
 import RAPIER from '@dimforge/rapier3d';
 
-async function waitForRapier() {
-  // Wait for WASM to be fully initialized by testing if we can create objects
-  const maxAttempts = 30;
-  const delayMs = 200;
-
-  for (let i = 0; i < maxAttempts; i++) {
-    try {
-      // Try to create a test world to verify WASM is ready
-      const testWorld = new RAPIER.World({ x: 0, y: -9.81, z: 0 });
-      testWorld.free();
-      console.log(`✓ Rapier WASM initialized (attempt ${i + 1})`);
-      return;
-    } catch (e) {
-      // WASM not ready yet, wait and retry
-      console.log(`Waiting for WASM... attempt ${i + 1}/${maxAttempts}`);
-      await new Promise(resolve => setTimeout(resolve, delayMs));
-    }
-  }
-
-  throw new Error('Failed to initialize Rapier WASM module after multiple attempts');
-}
-
 async function init() {
   try {
-    // Wait for Rapier WASM to be fully initialized
-    console.log('✓ Loading Rapier physics engine...');
-    await waitForRapier();
-    console.log('✓ Rapier ready');
+    console.log('Initializing Rapier physics engine...');
+
+    // RAPIER ES module auto-loads WASM
+    // Just verify it's available
+    if (!RAPIER.World) {
+      throw new Error('Rapier module not loaded correctly');
+    }
+
+    console.log('✓ Rapier physics engine ready');
 
     // Hide loading screen
     const loadingEl = document.getElementById('loading');
