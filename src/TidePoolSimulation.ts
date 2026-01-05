@@ -154,7 +154,7 @@ export class TidePoolSimulation {
 
     // Update environment (tide, temperature, etc.)
     // Pass real deltaTime for wave animation, simDeltaTime for other environmental changes
-    this.environment.update(this.simulationTime, simDeltaTime, deltaTime);
+    this.environment.update(this.simulationTime, simDeltaTime, deltaTime, this.renderer.camera);
 
     // Update physics
     this.physicsWorld.step(deltaTime);

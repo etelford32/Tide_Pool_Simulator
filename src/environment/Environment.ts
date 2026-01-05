@@ -2,6 +2,9 @@ import * as THREE from 'three';
 import RAPIER from '@dimforge/rapier3d-compat';
 import { PhysicsWorld } from '../physics/PhysicsWorld';
 import { SimulationMode } from '../TidePoolSimulation';
+import { WaterSystem } from '../rendering/WaterSystem';
+import { TerrainSystem } from './TerrainSystem';
+import { MoonSystem } from './MoonSystem';
 
 interface EnvironmentParameters {
   temperature: number; // °C
@@ -20,6 +23,11 @@ export class Environment {
   private oceanMesh: THREE.Mesh | null = null;
   private waveMesh: THREE.Mesh | null = null;
   private foamParticles: THREE.Points | null = null;
+
+  // Advanced water system
+  private waterSystem: WaterSystem | null = null;
+  private terrainSystem: TerrainSystem | null = null;
+  private moonSystem: MoonSystem | null = null;
 
   // Tidal parameters
   private tidalPeriod = 0.5; // days (12 hours for semi-diurnal tide)
@@ -44,7 +52,22 @@ export class Environment {
   }
 
   createTidePool(physicsWorld: PhysicsWorld, scene: THREE.Scene) {
-    // Create ocean at the bottom of the screen
+    // Create moon system for tidal effects
+    this.moonSystem = new MoonSystem(scene);
+
+    // Create terrain with realistic grade and slope variations
+    this.terrainSystem = new TerrainSystem(scene, physicsWorld);
+    this.terrainSystem.createTerrain();
+    this.terrainSystem.addTerrainDetails();
+
+    // Initialize advanced water system with realistic waves
+    const waterBounds = new THREE.Box3(
+      new THREE.Vector3(-50, -5, -25),
+      new THREE.Vector3(50, 5, 25)
+    );
+    this.waterSystem = new WaterSystem(scene, waterBounds);
+
+    // Create ocean at the bottom of the screen (kept for distant water)
     const oceanGeometry = new THREE.PlaneGeometry(100, 50);
     const oceanMaterial = new THREE.MeshStandardMaterial({
       color: 0x006994,
@@ -249,9 +272,19 @@ export class Environment {
     }
   }
 
-  update(simulationTime: number, deltaTime: number, realDeltaTime?: number) {
+  update(simulationTime: number, deltaTime: number, realDeltaTime?: number, camera?: THREE.Camera) {
     // Use real deltaTime for wave animation if provided, otherwise use simulation deltaTime
     const waveDeltaTime = realDeltaTime !== undefined ? realDeltaTime : deltaTime;
+
+    // Update moon system
+    if (this.moonSystem) {
+      this.moonSystem.update(simulationTime);
+    }
+
+    // Update advanced water system if available
+    if (this.waterSystem && camera) {
+      this.waterSystem.update(waveDeltaTime, camera);
+    }
 
     // Update real-time wave animation (waveDeltaTime is in seconds)
     this.waveTimer += waveDeltaTime;
@@ -279,9 +312,20 @@ export class Environment {
       foamMaterial.opacity = 0.6 + waveChangeRate * 0.4;
     }
 
-    // Update tidal cycle (for tide pool water level)
-    const tidalPhase = (simulationTime % this.tidalPeriod) / this.tidalPeriod;
-    this.params.tideLevel = 0.5 + 0.5 * Math.sin(tidalPhase * Math.PI * 2);
+    // Update tidal cycle using moon system (for tide pool water level)
+    if (this.moonSystem) {
+      this.params.tideLevel = this.moonSystem.calculateTidalForce(simulationTime);
+
+      // Update water level in water system based on tide
+      if (this.waterSystem) {
+        const waterLevel = -2 + this.params.tideLevel * 3; // Range from -2 to +1
+        this.waterSystem.setWaterLevel(waterLevel);
+      }
+    } else {
+      // Fallback to simple tidal calculation if no moon
+      const tidalPhase = (simulationTime % this.tidalPeriod) / this.tidalPeriod;
+      this.params.tideLevel = 0.5 + 0.5 * Math.sin(tidalPhase * Math.PI * 2);
+    }
 
     // Temperature varies with time of day (simplified)
     const dailyCycle = (simulationTime % 1); // 0-1 for one day
@@ -322,7 +366,8 @@ export class Environment {
     }
 
     // Turbulence relates to tide change rate (now also considers real wave movement)
-    const tideChangeRate = Math.abs(Math.cos(tidalPhase * Math.PI * 2));
+    // Derive tide change rate from tideLevel (rate is highest when tide is at 0.5)
+    const tideChangeRate = 1 - Math.abs(this.params.tideLevel - 0.5) * 2;
     this.params.turbulence = 0.2 + Math.max(tideChangeRate, waveChangeRate) * 0.5;
   }
 
