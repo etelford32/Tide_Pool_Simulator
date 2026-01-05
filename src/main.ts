@@ -53,6 +53,8 @@ function setupControls(simulation: TidePoolSimulation) {
   const resetBtn = document.getElementById('reset');
   const gameModeBtn = document.getElementById('game-mode');
   const simModeBtn = document.getElementById('sim-mode');
+  const timeScaleSlider = document.getElementById('time-scale-slider') as HTMLInputElement;
+  const timeScaleLabel = document.getElementById('time-scale-label');
 
   if (playPauseBtn) {
     playPauseBtn.addEventListener('click', () => {
@@ -92,6 +94,15 @@ function setupControls(simulation: TidePoolSimulation) {
       simulation.setMode('scientific');
       simModeBtn.classList.add('active');
       gameModeBtn.classList.remove('active');
+    });
+  }
+
+  // Time scale slider
+  if (timeScaleSlider && timeScaleLabel) {
+    timeScaleSlider.addEventListener('input', () => {
+      const scale = parseFloat(timeScaleSlider.value);
+      simulation.setTimeScale(scale);
+      timeScaleLabel.textContent = `Speed: ${scale.toFixed(1)}x`;
     });
   }
 

@@ -11,10 +11,10 @@ export class WaterSystem {
   private waterMaterial: THREE.ShaderMaterial;
 
   // Water properties
-  private waterLevel: number = 0;
-  private waveAmplitude: number = 0.3;
+  private waterLevel: number = 0.5; // Raised to flow over beach
+  private waveAmplitude: number = 0.4;
   private waveFrequency: number = 0.5;
-  private waveSpeed: number = 1.0;
+  private waveSpeed: number = 1.2;
 
   // Mesh resolution
   private resolution: number = 128;

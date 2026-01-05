@@ -15,8 +15,8 @@ export class TerrainSystem {
   private width: number = 100;
   private depth: number = 100;
   private resolution: number = 128; // Grid resolution for height samples
-  private maxHeight: number = 8;
-  private minHeight: number = -3;
+  private maxHeight: number = 4; // Reduced for flatter terrain
+  private minHeight: number = -2; // Raised minimum for beach level
 
   // Noise parameters for natural terrain generation
   private octaves: number = 4;
@@ -70,45 +70,58 @@ export class TerrainSystem {
    * Generate height value for a given position with geological features
    */
   private getTerrainHeight(x: number, z: number): number {
-    // Base terrain using fractal noise
-    let height = this.fbm(x, z);
+    // Base terrain using fractal noise (scaled down for flatter terrain)
+    let height = this.fbm(x, z) * 0.6;
+
+    // Create beach gradient (slopes from water up to land)
+    // Beach extends from z = -30 to z = 0, sloping upward
+    const beachStart = -30;
+    const beachEnd = 0;
+    if (z > beachStart && z < beachEnd) {
+      const beachProgress = (z - beachStart) / (beachEnd - beachStart);
+      const beachSlope = beachProgress * 1.5; // Gentle slope from -1.5 to 0
+      height += beachSlope - 1.5;
+    } else if (z <= beachStart) {
+      // Deep water area
+      height -= 1.5;
+    }
 
     // Add central depression for tide pool
     const poolCenterX = 0;
-    const poolCenterZ = 0;
+    const poolCenterZ = 5;
     const distToPoolCenter = Math.sqrt(
       Math.pow(x - poolCenterX, 2) + Math.pow(z - poolCenterZ, 2)
     );
 
-    // Create bowl-shaped depression
-    if (distToPoolCenter < 8) {
-      const poolDepth = 1.5;
-      const bowlFactor = 1 - (distToPoolCenter / 8);
+    // Create bowl-shaped depression (shallower)
+    if (distToPoolCenter < 6) {
+      const poolDepth = 0.8;
+      const bowlFactor = 1 - (distToPoolCenter / 6);
       height -= poolDepth * bowlFactor * bowlFactor;
     }
 
-    // Add ridge on one side (coastal cliff)
+    // Add ridge on one side (coastal cliff - flatter)
     const ridgeX = -15;
     const distToRidge = Math.abs(x - ridgeX);
     if (distToRidge < 10) {
-      const ridgeHeight = 3.0;
+      const ridgeHeight = 2.0; // Reduced height
       const ridgeFactor = 1 - (distToRidge / 10);
       height += ridgeHeight * ridgeFactor * ridgeFactor;
     }
 
-    // Add some rocky outcrops (sharp local maxima)
+    // Add some flatter rocky outcrops (wider and lower)
     const outcrop1Dist = Math.sqrt(Math.pow(x - 10, 2) + Math.pow(z - 8, 2));
-    if (outcrop1Dist < 3) {
-      height += 1.5 * (1 - outcrop1Dist / 3);
+    if (outcrop1Dist < 5) {
+      height += 0.6 * (1 - outcrop1Dist / 5); // Wider, flatter
     }
 
     const outcrop2Dist = Math.sqrt(Math.pow(x + 5, 2) + Math.pow(z + 12, 2));
-    if (outcrop2Dist < 2.5) {
-      height += 1.2 * (1 - outcrop2Dist / 2.5);
+    if (outcrop2Dist < 4) {
+      height += 0.5 * (1 - outcrop2Dist / 4); // Wider, flatter
     }
 
-    // Scale to desired height range
-    height = this.minHeight + height * (this.maxHeight - this.minHeight);
+    // Clamp to terrain range
+    height = Math.max(this.minHeight, Math.min(this.maxHeight, height));
 
     return height;
   }
@@ -165,28 +178,49 @@ export class TerrainSystem {
       const height = this.getTerrainHeight(x, z);
       positions[i + 1] = height;
 
-      // Color based on height and slope
+      // Color based on height and slope with better gradients
       const slope = this.getSlope(x, z);
       const normalizedHeight = (height - this.minHeight) / (this.maxHeight - this.minHeight);
 
-      // Color palette: dark rock (low), sand (mid), grass/moss (high), rock (steep)
+      // Color palette with smooth gradients
       let color = new THREE.Color();
 
-      if (slope > 40) {
-        // Steep areas - gray rock
-        color.setHSL(0, 0, 0.3 + Math.random() * 0.1);
-      } else if (normalizedHeight < 0.2) {
-        // Low areas - dark wet rock
-        color.setHSL(0.1, 0.3, 0.15 + Math.random() * 0.05);
-      } else if (normalizedHeight < 0.4) {
-        // Sandy areas
-        color.setHSL(0.1, 0.4, 0.4 + Math.random() * 0.1);
-      } else if (normalizedHeight < 0.7) {
-        // Grassy/mossy areas
-        color.setHSL(0.25, 0.5, 0.25 + Math.random() * 0.1);
+      // Beach area (low elevation near water)
+      if (height < -0.8) {
+        // Underwater/deep areas - dark brown rock
+        color.setHSL(0.08, 0.4, 0.12 + Math.random() * 0.03);
+      } else if (height < -0.2) {
+        // Wet shore - dark sand with gray tones
+        color.setHSL(0.1, 0.25, 0.25 + Math.random() * 0.05);
+      } else if (height < 0.3) {
+        // Beach sand - tan/beige gradient
+        const sandGradient = (height + 0.2) / 0.5; // 0 to 1
+        color.setHSL(
+          0.12 + Math.random() * 0.02, // Warm sand hue
+          0.35 + sandGradient * 0.15,
+          0.45 + sandGradient * 0.15 + Math.random() * 0.08
+        );
+      } else if (slope > 30) {
+        // Steep rocky areas - gray with variation
+        color.setHSL(
+          0.15 + Math.random() * 0.05,
+          0.15,
+          0.35 + Math.random() * 0.15
+        );
+      } else if (normalizedHeight > 0.6) {
+        // Higher areas - mix of rock and vegetation
+        color.setHSL(
+          0.18 + Math.random() * 0.1,
+          0.3 + Math.random() * 0.1,
+          0.3 + Math.random() * 0.1
+        );
       } else {
-        // High areas - lighter rock
-        color.setHSL(0.1, 0.2, 0.45 + Math.random() * 0.1);
+        // Mid-level areas - coastal vegetation/rock mix
+        color.setHSL(
+          0.15 + Math.random() * 0.08,
+          0.25 + Math.random() * 0.15,
+          0.35 + Math.random() * 0.1
+        );
       }
 
       colors[i] = color.r;

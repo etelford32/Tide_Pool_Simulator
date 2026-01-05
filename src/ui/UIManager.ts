@@ -1,6 +1,9 @@
 export interface UIState {
   time: number; // days
   tideLevel: number; // 0-1
+  waterHeight: number; // meters
+  moonPhase: string; // moon phase name
+  shoreMoisture: number; // 0-1
   temperature: number; // °C
   speciesCount: number;
   totalOrganisms: number;
@@ -10,6 +13,9 @@ export interface UIState {
 export class UIManager {
   private timeEl: HTMLElement | null;
   private tideEl: HTMLElement | null;
+  private waterHeightEl: HTMLElement | null;
+  private moonPhaseEl: HTMLElement | null;
+  private shoreMoistureEl: HTMLElement | null;
   private temperatureEl: HTMLElement | null;
   private speciesEl: HTMLElement | null;
   private organismsEl: HTMLElement | null;
@@ -18,6 +24,9 @@ export class UIManager {
   constructor() {
     this.timeEl = document.getElementById('time');
     this.tideEl = document.getElementById('tide');
+    this.waterHeightEl = document.getElementById('water-height');
+    this.moonPhaseEl = document.getElementById('moon-phase');
+    this.shoreMoistureEl = document.getElementById('shore-moisture');
     this.temperatureEl = document.getElementById('temperature');
     this.speciesEl = document.getElementById('species');
     this.organismsEl = document.getElementById('organisms');
@@ -34,6 +43,22 @@ export class UIManager {
         state.tideLevel > 0.7 ? 'High' :
         state.tideLevel > 0.3 ? 'Medium' : 'Low';
       this.tideEl.textContent = `${tideStatus} (${(state.tideLevel * 100).toFixed(0)}%)`;
+    }
+
+    if (this.waterHeightEl) {
+      this.waterHeightEl.textContent = `${state.waterHeight.toFixed(2)}m`;
+    }
+
+    if (this.moonPhaseEl) {
+      this.moonPhaseEl.textContent = state.moonPhase;
+    }
+
+    if (this.shoreMoistureEl) {
+      const moistureStatus =
+        state.shoreMoisture > 0.7 ? 'Saturated' :
+        state.shoreMoisture > 0.4 ? 'Damp' :
+        state.shoreMoisture > 0.1 ? 'Moist' : 'Dry';
+      this.shoreMoistureEl.textContent = `${moistureStatus} (${(state.shoreMoisture * 100).toFixed(0)}%)`;
     }
 
     if (this.temperatureEl) {

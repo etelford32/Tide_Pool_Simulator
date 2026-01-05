@@ -12,7 +12,7 @@ export class MoonSystem {
   // Moon orbital parameters
   private orbitRadius: number = 100; // Distance from scene center
   private orbitHeight: number = 50; // Height above horizon
-  private orbitSpeed: number = 1.0; // Degrees per day (full cycle = 360 days)
+  private orbitSpeed: number = 12.2; // Degrees per day (full cycle = 29.5 days)
 
   // Moon properties
   private moonRadius: number = 3.5;
@@ -24,6 +24,7 @@ export class MoonSystem {
 
   // Tidal calculation
   private tidalStrength: number = 1.0;
+  private weeklyTidalCycle: number = 7.0; // Weekly spring/neap tide cycle
 
   constructor(scene: THREE.Scene) {
     this.scene = scene;
@@ -111,21 +112,27 @@ export class MoonSystem {
   /**
    * Calculate tidal force at current time
    * Returns a value between 0 (low tide) and 1 (high tide)
+   * Simulates weekly spring/neap tide cycles
    */
   calculateTidalForce(simulationTime: number): number {
-    // Tidal force is strongest during new moon and full moon (spring tides)
-    // Weakest during quarter moons (neap tides)
-
     // Two high tides and two low tides per day (semi-diurnal)
     const dailyCycle = (simulationTime % 1) * 2; // 0-2 for two cycles per day
     const dailyTide = Math.sin(dailyCycle * Math.PI);
 
-    // Lunar cycle affects amplitude (spring vs neap tides)
-    const lunarPhaseEffect = Math.abs(Math.cos(this.moonPhase * Math.PI * 2));
-    const springNeapFactor = 0.7 + 0.3 * lunarPhaseEffect; // 0.7-1.0
+    // Weekly spring/neap tide cycle
+    // Spring tides (highest highs and lowest lows) occur at new and full moon
+    // Neap tides (moderate) occur at quarter moons
+    const weeklyPhase = (simulationTime % this.weeklyTidalCycle) / this.weeklyTidalCycle;
 
-    // Combine daily and lunar effects
-    const tidalForce = 0.5 + 0.5 * dailyTide * springNeapFactor;
+    // Two spring tides per week (approximately)
+    // Use cosine so we get peaks at 0 and 0.5 (matching lunar phases)
+    const springNeapCycle = Math.abs(Math.cos(weeklyPhase * Math.PI * 2));
+
+    // Spring tide amplitude: 1.0, Neap tide amplitude: 0.6
+    const tidalAmplitude = 0.6 + 0.4 * springNeapCycle;
+
+    // Combine daily oscillation with weekly amplitude variation
+    const tidalForce = 0.5 + 0.5 * dailyTide * tidalAmplitude;
 
     return tidalForce * this.tidalStrength;
   }

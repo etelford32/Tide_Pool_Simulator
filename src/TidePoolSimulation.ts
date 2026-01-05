@@ -193,6 +193,9 @@ export class TidePoolSimulation {
     this.uiManager.update({
       time: this.simulationTime,
       tideLevel: this.environment.getTideLevel(),
+      waterHeight: this.environment.getWaterLevel(),
+      moonPhase: this.environment.getMoonPhaseName(),
+      shoreMoisture: this.environment.getShoreMoisture(),
       temperature: this.environment.getTemperature(),
       speciesCount: stats.speciesCount,
       totalOrganisms: stats.totalOrganisms,
@@ -319,6 +322,11 @@ export class TidePoolSimulation {
   adjustTimeScale(multiplier: number) {
     this.timeScale *= multiplier;
     this.timeScale = Math.max(0.1, Math.min(100, this.timeScale));
+    console.log(`Time scale: ${this.timeScale.toFixed(2)}x`);
+  }
+
+  setTimeScale(scale: number) {
+    this.timeScale = Math.max(0, Math.min(10, scale));
     console.log(`Time scale: ${this.timeScale.toFixed(2)}x`);
   }
 

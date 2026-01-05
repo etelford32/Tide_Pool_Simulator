@@ -5,6 +5,7 @@ import { SimulationMode } from '../TidePoolSimulation';
 import { WaterSystem } from '../rendering/WaterSystem';
 import { TerrainSystem } from './TerrainSystem';
 import { MoonSystem } from './MoonSystem';
+import { MoistureSystem } from './MoistureSystem';
 
 interface EnvironmentParameters {
   temperature: number; // °C
@@ -28,6 +29,7 @@ export class Environment {
   private waterSystem: WaterSystem | null = null;
   private terrainSystem: TerrainSystem | null = null;
   private moonSystem: MoonSystem | null = null;
+  private moistureSystem: MoistureSystem | null = null;
 
   // Tidal parameters
   private tidalPeriod = 0.5; // days (12 hours for semi-diurnal tide)
@@ -59,6 +61,13 @@ export class Environment {
     this.terrainSystem = new TerrainSystem(scene, physicsWorld);
     this.terrainSystem.createTerrain();
     this.terrainSystem.addTerrainDetails();
+
+    // Initialize moisture system
+    const moistureBounds = new THREE.Box3(
+      new THREE.Vector3(-50, -5, -50),
+      new THREE.Vector3(50, 5, 50)
+    );
+    this.moistureSystem = new MoistureSystem(moistureBounds, new THREE.Vector2(64, 64));
 
     // Initialize advanced water system with realistic waves
     const waterBounds = new THREE.Box3(
@@ -313,18 +322,30 @@ export class Environment {
     }
 
     // Update tidal cycle using moon system (for tide pool water level)
+    let currentWaterLevel = 0;
     if (this.moonSystem) {
       this.params.tideLevel = this.moonSystem.calculateTidalForce(simulationTime);
 
       // Update water level in water system based on tide
+      // Range from -1.0 (low tide) to +1.5 (high tide) so water flows over beach
+      currentWaterLevel = -1.0 + this.params.tideLevel * 2.5;
       if (this.waterSystem) {
-        const waterLevel = -2 + this.params.tideLevel * 3; // Range from -2 to +1
-        this.waterSystem.setWaterLevel(waterLevel);
+        this.waterSystem.setWaterLevel(currentWaterLevel);
       }
     } else {
       // Fallback to simple tidal calculation if no moon
       const tidalPhase = (simulationTime % this.tidalPeriod) / this.tidalPeriod;
       this.params.tideLevel = 0.5 + 0.5 * Math.sin(tidalPhase * Math.PI * 2);
+      currentWaterLevel = -1.0 + this.params.tideLevel * 2.5;
+    }
+
+    // Update moisture system
+    if (this.moistureSystem) {
+      // Apply water coverage where terrain is underwater
+      this.moistureSystem.applyWaterCoverage(currentWaterLevel);
+
+      // Update moisture (evaporation, drainage)
+      this.moistureSystem.update(deltaTime, this.params.temperature);
     }
 
     // Temperature varies with time of day (simplified)
@@ -373,6 +394,27 @@ export class Environment {
 
   getTideLevel(): number {
     return this.params.tideLevel;
+  }
+
+  getWaterLevel(): number {
+    if (this.waterSystem) {
+      return this.waterSystem.getWaterLevel();
+    }
+    return -1.0 + this.params.tideLevel * 2.5;
+  }
+
+  getMoonPhaseName(): string {
+    if (this.moonSystem) {
+      return this.moonSystem.getMoonPhaseName();
+    }
+    return 'Unknown';
+  }
+
+  getShoreMoisture(): number {
+    if (this.moistureSystem) {
+      return this.moistureSystem.getAverageShoreMoisture();
+    }
+    return 0;
   }
 
   getTemperature(): number {
