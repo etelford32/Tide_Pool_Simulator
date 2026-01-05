@@ -1,21 +1,21 @@
 import { TidePoolSimulation } from './TidePoolSimulation';
+import RAPIER from '@dimforge/rapier3d';
 
 async function waitForRapier() {
-  // Dynamically import Rapier
-  const RAPIER = await import('@dimforge/rapier3d');
-
   // Wait for WASM to be fully initialized by testing if we can create objects
-  const maxAttempts = 20;
-  const delayMs = 100;
+  const maxAttempts = 30;
+  const delayMs = 200;
 
   for (let i = 0; i < maxAttempts; i++) {
     try {
       // Try to create a test world to verify WASM is ready
       const testWorld = new RAPIER.World({ x: 0, y: -9.81, z: 0 });
       testWorld.free();
-      return RAPIER;
+      console.log(`✓ Rapier WASM initialized (attempt ${i + 1})`);
+      return;
     } catch (e) {
       // WASM not ready yet, wait and retry
+      console.log(`Waiting for WASM... attempt ${i + 1}/${maxAttempts}`);
       await new Promise(resolve => setTimeout(resolve, delayMs));
     }
   }

@@ -20,5 +20,9 @@ export default defineConfig({
   },
   optimizeDeps: {
     exclude: ['@dimforge/rapier3d']
+  },
+  worker: {
+    format: 'es',
+    plugins: () => [wasm(), topLevelAwait()]
   }
 })
