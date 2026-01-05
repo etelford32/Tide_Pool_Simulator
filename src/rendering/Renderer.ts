@@ -2,8 +2,8 @@ import * as THREE from 'three';
 
 export class Renderer {
   public scene: THREE.Scene;
-  private camera: THREE.PerspectiveCamera;
-  private renderer: THREE.WebGLRenderer;
+  public camera: THREE.PerspectiveCamera;
+  public renderer: THREE.WebGLRenderer;
   private ambientLight: THREE.AmbientLight;
   private sunLight: THREE.DirectionalLight;
   private sunMesh: THREE.Mesh;

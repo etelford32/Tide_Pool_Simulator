@@ -1,9 +1,12 @@
+import * as THREE from 'three';
 import { PhysicsWorld } from './physics/PhysicsWorld';
 import { Renderer } from './rendering/Renderer';
 import { Environment } from './environment/Environment';
 import { OrganismManager } from './organisms/OrganismManager';
 import { UIManager } from './ui/UIManager';
 import { InputHandler } from './input/InputHandler';
+import { CameraController } from './camera/CameraController';
+import { CameraInputHandler } from './camera/CameraInputHandler';
 
 export type SimulationMode = 'game' | 'scientific';
 
@@ -14,6 +17,8 @@ export class TidePoolSimulation {
   private organismManager: OrganismManager;
   private uiManager: UIManager;
   private inputHandler: InputHandler;
+  private cameraController: CameraController | null = null;
+  private cameraInputHandler: CameraInputHandler | null = null;
 
   private mode: SimulationMode = 'game';
   private timeScale: number = 1.0; // 1 minute = 1 day in game mode
@@ -38,6 +43,14 @@ export class TidePoolSimulation {
 
     // Initialize physics world
     this.physicsWorld.initialize();
+
+    // Initialize camera controller
+    this.cameraController = new CameraController(this.renderer.camera);
+    const canvas = this.renderer.renderer.domElement;
+    this.cameraInputHandler = new CameraInputHandler(this.cameraController, canvas);
+
+    // Set up camera UI controls
+    this.setupCameraControls();
 
     // Create initial environment
     this.environment.createTidePool(this.physicsWorld, this.renderer.scene);
@@ -156,6 +169,12 @@ export class TidePoolSimulation {
       playerFish.setMoveDirection(moveDir.x, moveDir.z);
     }
 
+    // Update camera
+    if (this.cameraController && this.cameraInputHandler) {
+      this.cameraInputHandler.update(deltaTime);
+      this.cameraController.update(deltaTime);
+    }
+
     // Update UI
     this.updateUI();
   }
@@ -179,6 +198,100 @@ export class TidePoolSimulation {
       totalOrganisms: stats.totalOrganisms,
       biodiversity: stats.shannonIndex,
     });
+  }
+
+  private setupCameraControls() {
+    if (!this.cameraController) return;
+
+    // Zoom controls
+    const zoomIn = document.getElementById('zoom-in');
+    const zoomOut = document.getElementById('zoom-out');
+    const zoomSlider = document.getElementById('zoom-slider') as HTMLInputElement;
+
+    if (zoomIn) {
+      zoomIn.addEventListener('click', () => this.cameraController!.zoom(-200));
+    }
+    if (zoomOut) {
+      zoomOut.addEventListener('click', () => this.cameraController!.zoom(200));
+    }
+    if (zoomSlider) {
+      zoomSlider.addEventListener('input', (e) => {
+        const value = parseFloat((e.target as HTMLInputElement).value);
+        this.cameraController!.setZoom(value);
+      });
+    }
+
+    // Pan controls
+    const panUp = document.getElementById('pan-up');
+    const panDown = document.getElementById('pan-down');
+    const panLeft = document.getElementById('pan-left');
+    const panRight = document.getElementById('pan-right');
+    const panReset = document.getElementById('pan-reset');
+
+    if (panUp) panUp.addEventListener('click', () => this.cameraController!.pan(0, 3));
+    if (panDown) panDown.addEventListener('click', () => this.cameraController!.pan(0, -3));
+    if (panLeft) panLeft.addEventListener('click', () => this.cameraController!.pan(-3, 0));
+    if (panRight) panRight.addEventListener('click', () => this.cameraController!.pan(3, 0));
+    if (panReset) panReset.addEventListener('click', () => {
+      this.cameraController!.setTarget(new THREE.Vector3(0, 2, 0));
+    });
+
+    // Rotate controls
+    const rotateUp = document.getElementById('rotate-up');
+    const rotateDown = document.getElementById('rotate-down');
+    const rotateLeft = document.getElementById('rotate-left');
+    const rotateRight = document.getElementById('rotate-right');
+    const rotateReset = document.getElementById('rotate-reset');
+
+    if (rotateUp) rotateUp.addEventListener('click', () => this.cameraController!.orbit(0, 10));
+    if (rotateDown) rotateDown.addEventListener('click', () => this.cameraController!.orbit(0, -10));
+    if (rotateLeft) rotateLeft.addEventListener('click', () => this.cameraController!.orbit(-10, 0));
+    if (rotateRight) rotateRight.addEventListener('click', () => this.cameraController!.orbit(10, 0));
+    if (rotateReset) rotateReset.addEventListener('click', () => {
+      this.cameraController!.applyPreset('default');
+    });
+
+    // Preset controls
+    const presetDefault = document.getElementById('preset-default');
+    const presetTop = document.getElementById('preset-top');
+    const presetSide = document.getElementById('preset-side');
+    const presetFront = document.getElementById('preset-front');
+    const presetIsometric = document.getElementById('preset-isometric');
+    const presetFollow = document.getElementById('preset-follow');
+
+    if (presetDefault) {
+      presetDefault.addEventListener('click', () => {
+        this.cameraController!.applyPreset('default');
+      });
+    }
+    if (presetTop) {
+      presetTop.addEventListener('click', () => {
+        this.cameraController!.applyPreset('top');
+      });
+    }
+    if (presetSide) {
+      presetSide.addEventListener('click', () => {
+        this.cameraController!.applyPreset('side');
+      });
+    }
+    if (presetFront) {
+      presetFront.addEventListener('click', () => {
+        this.cameraController!.applyPreset('front');
+      });
+    }
+    if (presetIsometric) {
+      presetIsometric.addEventListener('click', () => {
+        this.cameraController!.applyPreset('isometric');
+      });
+    }
+    if (presetFollow) {
+      presetFollow.addEventListener('click', () => {
+        const playerFish = this.organismManager.getPlayerClownfish();
+        if (playerFish) {
+          this.cameraController!.applyPreset('follow', playerFish.getPosition());
+        }
+      });
+    }
   }
 
   togglePause(): boolean {
