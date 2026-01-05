@@ -1,35 +1,19 @@
 import { TidePoolSimulation } from './TidePoolSimulation';
+import RAPIER from '@dimforge/rapier3d-compat';
 
 async function init() {
   try {
-    console.log('[INIT] Starting tide pool simulator v0.1.1');
+    console.log('[INIT] Starting tide pool simulator v0.1.1 (compat build)');
 
-    // Dynamically import Rapier to ensure WASM loads asynchronously
-    console.log('[RAPIER] Dynamically importing Rapier module...');
-    const RAPIER = await import('@dimforge/rapier3d');
-    console.log('[RAPIER] Module imported');
-    console.log('[RAPIER] World constructor:', typeof RAPIER.World);
+    // Initialize Rapier WASM (compat build has proper init function)
+    console.log('[RAPIER] Initializing Rapier compat build...');
+    await RAPIER.init();
+    console.log('[RAPIER] ✓ WASM initialized!');
 
-    // Wait for WASM to actually be ready by polling
-    let attempts = 0;
-    const maxAttempts = 50;
-    while (attempts < maxAttempts) {
-      try {
-        console.log(`[RAPIER] WASM initialization test ${attempts + 1}/${maxAttempts}...`);
-        const testWorld = new RAPIER.World({ x: 0, y: -9.81, z: 0 });
-        testWorld.free();
-        console.log('[RAPIER] ✓ WASM fully initialized and working!');
-        break;
-      } catch (e) {
-        attempts++;
-        if (attempts >= maxAttempts) {
-          console.error('[RAPIER] ✗ WASM failed to initialize after', maxAttempts, 'attempts');
-          throw new Error('Rapier WASM module failed to initialize after 5 seconds. This may be a browser compatibility issue or network problem.');
-        }
-        // Wait 100ms before retrying
-        await new Promise(resolve => setTimeout(resolve, 100));
-      }
-    }
+    // Test that it works
+    const testWorld = new RAPIER.World({ x: 0, y: -9.81, z: 0 });
+    testWorld.free();
+    console.log('[RAPIER] ✓ Test world created successfully!');
 
     console.log('[INIT] ✓ Rapier physics engine ready');
 
