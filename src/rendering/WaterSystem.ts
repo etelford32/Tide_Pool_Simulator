@@ -93,15 +93,19 @@ export class WaterSystem {
         }
 
         // Calculate all Gerstner wave components at once (optimization)
-        vec3 calculateAllWaves(vec3 pos) {
-          vec3 wave1 = gerstnerWave(pos, vec2(1.0, 0.0), waveAmplitude * 0.8, 4.0, waveSpeed, 1.0);
-          vec3 wave2 = gerstnerWave(pos, vec2(0.7, 0.7), waveAmplitude * 0.5, 3.0, waveSpeed * 0.8, 0.8);
-          vec3 wave3 = gerstnerWave(pos, vec2(-0.5, 0.8), waveAmplitude * 0.3, 2.5, waveSpeed * 1.2, 0.6);
-          vec3 wave4 = gerstnerWave(pos, vec2(0.3, -0.9), waveAmplitude * 0.2, 1.5, waveSpeed * 1.5, 0.5);
+        // Primary waves biased toward shore (positive Z direction)
+        vec3 calculateAllWaves(vec3 pos, float amplitude) {
+          // Main waves approaching shore (south direction)
+          vec3 wave1 = gerstnerWave(pos, vec2(0.0, 1.0), amplitude * 0.8, 4.0, waveSpeed, 1.0);
+          vec3 wave2 = gerstnerWave(pos, vec2(0.3, 0.9), amplitude * 0.5, 3.0, waveSpeed * 0.9, 0.8);
+          vec3 wave3 = gerstnerWave(pos, vec2(-0.3, 0.9), amplitude * 0.3, 2.5, waveSpeed * 1.1, 0.6);
 
-          // Add smaller ripples
-          vec3 wave5 = gerstnerWave(pos, vec2(0.6, 0.3), waveAmplitude * 0.15, 0.8, waveSpeed * 2.0, 0.4);
-          vec3 wave6 = gerstnerWave(pos, vec2(-0.4, -0.6), waveAmplitude * 0.1, 0.5, waveSpeed * 2.5, 0.3);
+          // Cross waves for realism
+          vec3 wave4 = gerstnerWave(pos, vec2(0.8, 0.3), amplitude * 0.2, 1.5, waveSpeed * 1.3, 0.5);
+
+          // Small ripples
+          vec3 wave5 = gerstnerWave(pos, vec2(0.5, 0.7), amplitude * 0.15, 0.8, waveSpeed * 1.8, 0.4);
+          vec3 wave6 = gerstnerWave(pos, vec2(-0.4, 0.6), amplitude * 0.1, 0.5, waveSpeed * 2.2, 0.3);
 
           return wave1 + wave2 + wave3 + wave4 + wave5 + wave6;
         }
@@ -111,11 +115,21 @@ export class WaterSystem {
           vec3 pos = position;
 
           // Shallow water dampening (waves get smaller near shore)
-          float depthFactor = smoothstep(-2.0, 0.5, position.y);
+          // Use depth relative to current water level, not static position
+          float localDepth = position.y - waterLevel;
+          float depthFactor = smoothstep(-2.0, 0.5, localDepth);
           float waveDamping = 0.3 + 0.7 * depthFactor;
 
-          // Calculate wave displacement
-          vec3 displacement = calculateAllWaves(pos) * waveDamping;
+          // Wave amplitude scaling to prevent waves exceeding water depth
+          float effectiveAmplitude = waveAmplitude;
+          if (localDepth > -2.0 && localDepth < 2.0) {
+            // In shallow water, limit wave height to 40% of depth
+            float maxSafeAmplitude = max(0.05, (waterLevel - position.y) * 0.4);
+            effectiveAmplitude = min(waveAmplitude, maxSafeAmplitude);
+          }
+
+          // Calculate wave displacement with scaled amplitude
+          vec3 displacement = calculateAllWaves(pos, effectiveAmplitude) * waveDamping;
           pos += displacement;
 
           vPosition = pos;
@@ -128,8 +142,8 @@ export class WaterSystem {
           vec3 posRight = position + vec3(delta, 0.0, 0.0);
           vec3 posForward = position + vec3(0.0, 0.0, delta);
 
-          vec3 displacementRight = calculateAllWaves(posRight) * waveDamping;
-          vec3 displacementForward = calculateAllWaves(posForward) * waveDamping;
+          vec3 displacementRight = calculateAllWaves(posRight, effectiveAmplitude) * waveDamping;
+          vec3 displacementForward = calculateAllWaves(posForward, effectiveAmplitude) * waveDamping;
 
           posRight += displacementRight;
           posForward += displacementForward;
@@ -203,9 +217,10 @@ export class WaterSystem {
           float F0 = 0.02; // Water's reflectance at normal incidence
           float fresnel = F0 + (1.0 - F0) * pow(1.0 - max(dot(viewDirection, normal), 0.0), 5.0);
 
-          // Depth-based color
-          float depth = clamp(-vDepth / 3.0, 0.0, 1.0);
-          vec3 baseColor = mix(shallowWaterColor, deepWaterColor, depth);
+          // Depth-based color (use actual depth below water surface)
+          float actualDepth = max(0.0, -vDepth); // Depth below water level
+          float depthNormalized = clamp(actualDepth / 5.0, 0.0, 1.0); // Normalize to 5m max depth
+          vec3 baseColor = mix(shallowWaterColor, deepWaterColor, depthNormalized);
           baseColor = mix(baseColor, waterColor, 0.5);
 
           // Physically-based lighting (Blinn-Phong)
@@ -217,13 +232,14 @@ export class WaterSystem {
           vec3 reflectDir = reflect(-lightDirection, normal);
           float sunReflection = pow(max(dot(viewDirection, reflectDir), 0.0), 256.0);
 
-          // Caustics effect (only in shallow water)
-          float causticsStrength = smoothstep(1.0, -0.5, -vDepth) * 0.5;
+          // Caustics effect (only in shallow water < 2m deep)
+          float causticsStrength = smoothstep(2.0, 0.0, actualDepth) * 0.6;
           float causticsPattern = caustics(vWorldPosition.xz, time);
           vec3 causticsColor = vec3(causticsPattern) * causticsStrength;
 
-          // Shore foam (based on depth and wave height)
-          float shoreDistance = smoothstep(-0.3, 0.1, -vDepth);
+          // Shore foam (based on actual depth and wave height)
+          // Foam appears in very shallow water (0-0.5m deep) and on breaking waves
+          float shoreDistance = smoothstep(0.5, 0.0, actualDepth);
           float waveBreaking = smoothstep(0.15, 0.35, vWaveHeight);
           float foamFactor = max(shoreDistance * 0.8, waveBreaking * 0.6);
 
@@ -252,7 +268,7 @@ export class WaterSystem {
           color = mix(color, skyColor, fresnel * 0.4);
 
           // Transparency based on depth and fresnel
-          float alpha = 0.80 + depth * 0.15 + fresnel * 0.05;
+          float alpha = 0.80 + depthNormalized * 0.15 + fresnel * 0.05;
           alpha = clamp(alpha, 0.7, 0.98);
 
           gl_FragColor = vec4(color, alpha);
