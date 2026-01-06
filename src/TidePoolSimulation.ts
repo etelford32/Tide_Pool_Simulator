@@ -114,8 +114,23 @@ export class TidePoolSimulation {
       }, this.renderer.scene);
     }
 
-    // Add hermit crabs (smart scavengers)
-    for (let i = 0; i < 5; i++) {
+    // Add hermit crabs - Star couple: Sheldon & Shelley! 🦀💕🦀
+    // Sheldon (male) - the adventurous one
+    this.organismManager.spawn('pacific_hermit_crab', {
+      x: -2.0,
+      y: 0.15,
+      z: -2.0,
+    }, this.renderer.scene, 'male');
+
+    // Shelley (female) - with egg flaps, graceful and nurturing
+    this.organismManager.spawn('pacific_hermit_crab', {
+      x: -1.5,
+      y: 0.15,
+      z: -2.0,
+    }, this.renderer.scene, 'female');
+
+    // Add a few more hermit crabs (random genders)
+    for (let i = 0; i < 3; i++) {
       this.organismManager.spawn('pacific_hermit_crab', {
         x: Math.random() * 6 - 3,
         y: 0.15,
@@ -433,6 +448,7 @@ export class TidePoolSimulation {
     // Update profile panel
     const nameEl = document.getElementById('creature-name');
     const speciesEl = document.getElementById('creature-species');
+    const genderEl = document.getElementById('creature-gender');
     const positionEl = document.getElementById('creature-position');
     const personalityEl = document.getElementById('creature-personality');
     const moodEl = document.getElementById('creature-mood');
@@ -443,8 +459,17 @@ export class TidePoolSimulation {
     const shellQualityEl = document.getElementById('creature-shell-quality');
     const foodEl = document.getElementById('creature-food');
 
-    if (nameEl) nameEl.textContent = `🦀 ${organism.profile?.name || organism.name}`;
+    const genderEmoji = ('getGender' in organism) ?
+      (organism.getGender() === 'male' ? '♂️' : '♀️') : '';
+
+    if (nameEl) nameEl.textContent = `${genderEmoji} ${organism.profile?.name || organism.name}`;
     if (speciesEl) speciesEl.textContent = organism.name || 'Unknown';
+
+    if (genderEl && 'getGender' in organism) {
+      const gender = organism.getGender();
+      genderEl.textContent = gender === 'male' ? '♂️ Male' : '♀️ Female';
+    }
+
     if (positionEl) positionEl.textContent = `X: ${pos.x.toFixed(1)}, Y: ${pos.y.toFixed(1)}, Z: ${pos.z.toFixed(1)}`;
 
     if (organism.profile) {
