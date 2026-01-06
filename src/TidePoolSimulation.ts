@@ -28,6 +28,11 @@ export class TidePoolSimulation {
 
   private animationFrameId: number | null = null;
 
+  // Selection system
+  private raycaster: THREE.Raycaster;
+  private mouse: THREE.Vector2;
+  private selectedOrganism: any | null = null;
+
   constructor() {
     this.physicsWorld = new PhysicsWorld();
     this.renderer = new Renderer();
@@ -35,6 +40,10 @@ export class TidePoolSimulation {
     this.organismManager = new OrganismManager(this.physicsWorld, this.environment);
     this.uiManager = new UIManager();
     this.inputHandler = new InputHandler();
+
+    // Initialize selection system
+    this.raycaster = new THREE.Raycaster();
+    this.mouse = new THREE.Vector2();
   }
 
   async initialize() {
@@ -54,6 +63,9 @@ export class TidePoolSimulation {
 
     // Set up matrix visualization toggle
     this.setupMatrixVisualizationToggle();
+
+    // Set up creature selection
+    this.setupCreatureSelection();
 
     // Create initial environment
     this.environment.createTidePool(this.physicsWorld, this.renderer.scene);
@@ -180,6 +192,11 @@ export class TidePoolSimulation {
 
     // Update UI
     this.updateUI();
+
+    // Update creature profile if selected
+    if (this.selectedOrganism) {
+      this.updateCreatureProfile();
+    }
   }
 
   private render() {
@@ -330,6 +347,130 @@ export class TidePoolSimulation {
           toggleBtn.classList.remove('active');
         }
       });
+    }
+  }
+
+  private setupCreatureSelection() {
+    const canvas = this.renderer.renderer.domElement;
+
+    // Handle mouse clicks for selection
+    canvas.addEventListener('click', (event) => {
+      // Calculate mouse position in normalized device coordinates (-1 to +1)
+      const rect = canvas.getBoundingClientRect();
+      this.mouse.x = ((event.clientX - rect.left) / rect.width) * 2 - 1;
+      this.mouse.y = -((event.clientY - rect.top) / rect.height) * 2 + 1;
+
+      // Update the picking ray with the camera and mouse position
+      this.raycaster.setFromCamera(this.mouse, this.renderer.camera);
+
+      // Calculate objects intersecting the picking ray
+      const intersects = this.raycaster.intersectObjects(this.renderer.scene.children, true);
+
+      if (intersects.length > 0) {
+        // Find the first organism in the intersected objects
+        for (const intersect of intersects) {
+          let object: THREE.Object3D | null = intersect.object;
+
+          // Traverse up to find organism
+          while (object) {
+            // Check if this object belongs to a hermit crab body group
+            if (object.name === 'CrabBodyGroup' && object.parent) {
+              this.selectCreature(object);
+              return;
+            }
+            object = object.parent;
+          }
+        }
+      }
+
+      // If no organism was clicked, hide the profile panel
+      this.deselectCreature();
+    });
+
+    // Close button for profile panel
+    const closeBtn = document.getElementById('close-profile');
+    if (closeBtn) {
+      closeBtn.addEventListener('click', () => {
+        this.deselectCreature();
+      });
+    }
+  }
+
+  private selectCreature(bodyGroup: THREE.Object3D) {
+    // Find the organism that owns this body group
+    const organisms = this.organismManager.getAllOrganisms();
+    for (const organism of organisms) {
+      if ('getBodyGroup' in organism) {
+        const bodyGroupMethod = organism.getBodyGroup as () => THREE.Group;
+        if (bodyGroupMethod.call(organism) === bodyGroup) {
+          this.selectedOrganism = organism as any;
+          this.updateCreatureProfile();
+          const profilePanel = document.getElementById('creature-profile');
+          if (profilePanel) {
+            profilePanel.style.display = 'block';
+          }
+          console.log(`Selected: ${(organism as any).profile?.name || (organism as any).name}`);
+          break;
+        }
+      }
+    }
+  }
+
+  private deselectCreature() {
+    this.selectedOrganism = null;
+    const profilePanel = document.getElementById('creature-profile');
+    if (profilePanel) {
+      profilePanel.style.display = 'none';
+    }
+  }
+
+  private updateCreatureProfile() {
+    if (!this.selectedOrganism) return;
+
+    const organism = this.selectedOrganism;
+    const pos = organism.getPosition();
+
+    // Update profile panel
+    const nameEl = document.getElementById('creature-name');
+    const speciesEl = document.getElementById('creature-species');
+    const positionEl = document.getElementById('creature-position');
+    const personalityEl = document.getElementById('creature-personality');
+    const moodEl = document.getElementById('creature-mood');
+    const activityEl = document.getElementById('creature-activity');
+    const healthEl = document.getElementById('creature-health');
+    const hungerEl = document.getElementById('creature-hunger');
+    const happinessEl = document.getElementById('creature-happiness');
+    const shellQualityEl = document.getElementById('creature-shell-quality');
+    const foodEl = document.getElementById('creature-food');
+
+    if (nameEl) nameEl.textContent = `🦀 ${organism.profile?.name || organism.name}`;
+    if (speciesEl) speciesEl.textContent = organism.name || 'Unknown';
+    if (positionEl) positionEl.textContent = `X: ${pos.x.toFixed(1)}, Y: ${pos.y.toFixed(1)}, Z: ${pos.z.toFixed(1)}`;
+
+    if (organism.profile) {
+      if (personalityEl) personalityEl.textContent = organism.profile.personality || 'Unknown';
+      if (moodEl) moodEl.textContent = organism.profile.mood || 'Unknown';
+      if (foodEl) foodEl.textContent = organism.profile.favoriteFood || 'Unknown';
+    }
+
+    if (activityEl && 'getCurrentActivity' in organism) {
+      activityEl.textContent = organism.getCurrentActivity();
+    }
+
+    if (healthEl && 'health' in organism) {
+      healthEl.textContent = `${Math.round(organism.health)}%`;
+    }
+
+    if (hungerEl && 'getHunger' in organism) {
+      hungerEl.textContent = `${Math.round(organism.getHunger())}%`;
+    }
+
+    if (happinessEl && 'getHappiness' in organism) {
+      happinessEl.textContent = `${Math.round(organism.getHappiness())}%`;
+    }
+
+    if (shellQualityEl && 'getShellQuality' in organism) {
+      shellQualityEl.textContent = `${Math.round(organism.getShellQuality())}%`;
     }
   }
 
