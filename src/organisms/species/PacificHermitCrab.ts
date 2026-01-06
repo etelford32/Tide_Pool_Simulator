@@ -764,13 +764,15 @@ export class PacificHermitCrab extends Organism {
         (Math.random() - 0.5) * 2
       );
 
+      // Offspring gender is random (not specified, will be assigned in constructor)
       return new PacificHermitCrab(
         {
           x: pos.x + offset.x,
-          y: 0.1,
+          y: 0.5,
           z: pos.z + offset.z,
         },
         this.physicsWorld
+        // Gender parameter omitted - will be random
       );
     }
 

@@ -24,9 +24,10 @@ export class Renderer {
       0.1,
       10000 // Extended to see 8km+ distances
     );
-    // Start at regional view (1000m altitude) to see the 5-mile shoreline
-    this.camera.position.set(0, 1000, -500);
-    this.camera.lookAt(0, 0, 0);
+    // Start at beach level to see Sheldon & Shelley!
+    // They're at around (-30, 0.5, 25) and (-25, 0.5, 28)
+    this.camera.position.set(-30, 15, 0); // 15m up, looking at beach from shore
+    this.camera.lookAt(-27, 0, 26); // Look at the crabs' location
 
     // Create renderer
     this.renderer = new THREE.WebGLRenderer({ antialias: true });

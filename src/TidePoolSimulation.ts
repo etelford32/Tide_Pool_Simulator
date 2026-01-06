@@ -77,82 +77,91 @@ export class TidePoolSimulation {
   }
 
   private spawnInitialEcosystem() {
+    // Spawn organisms in the intertidal/beach zone
+    // World coords: X: -4000 to +4000, Z: shoreline at 0, beach 0-100, ocean negative
+    // Focus spawning in a visible area near origin but at proper beach coordinates
+
+    const beachAreaX = 100; // Spawn within +/- 100m of center on X axis
+    const beachZoneZ = { min: 5, max: 50 }; // Beach zone 5-50m from shoreline
+
     // Phase 1 MVP organisms
-    // Add some algae (producers)
+    // Add some algae (producers) - along the shoreline
     for (let i = 0; i < 10; i++) {
       this.organismManager.spawn('sea_lettuce', {
-        x: Math.random() * 8 - 4,
+        x: (Math.random() - 0.5) * beachAreaX * 2,
         y: 0.1,
-        z: Math.random() * 8 - 4,
+        z: Math.random() * 10 - 5, // Near shoreline, some in water
       }, this.renderer.scene);
     }
 
-    // Add barnacles (filter feeders)
+    // Add barnacles (filter feeders) - on rocks in tidal zone
     for (let i = 0; i < 15; i++) {
       this.organismManager.spawn('acorn_barnacle', {
-        x: Math.random() * 8 - 4,
+        x: (Math.random() - 0.5) * beachAreaX * 2,
         y: 0.1,
-        z: Math.random() * 8 - 4,
+        z: Math.random() * 20, // Tidal zone
       }, this.renderer.scene);
     }
 
-    // Add limpets (herbivores)
+    // Add limpets (herbivores) - on rocks
     for (let i = 0; i < 8; i++) {
       this.organismManager.spawn('limpet', {
-        x: Math.random() * 8 - 4,
+        x: (Math.random() - 0.5) * beachAreaX * 2,
         y: 0.2,
-        z: Math.random() * 8 - 4,
+        z: Math.random() * 30, // Spread across tidal zone
       }, this.renderer.scene);
     }
 
-    // Add sea stars (predators)
+    // Add sea stars (predators) - in tide pools
     for (let i = 0; i < 3; i++) {
       this.organismManager.spawn('ochre_sea_star', {
-        x: Math.random() * 6 - 3,
+        x: (Math.random() - 0.5) * beachAreaX,
         y: 0.3,
-        z: Math.random() * 6 - 3,
+        z: Math.random() * 25, // Near water
       }, this.renderer.scene);
     }
 
     // Add hermit crabs - Star couple: Sheldon & Shelley! 🦀💕🦀
-    // Sheldon (male) - the adventurous one
+    // Place them on the sandy beach where they belong!
+
+    // Sheldon (male) - the adventurous one, exploring the beach
     this.organismManager.spawn('pacific_hermit_crab', {
-      x: -2.0,
-      y: 0.15,
-      z: -2.0,
+      x: -30, // 30m west of center
+      y: 0.5, // Slightly elevated for visibility
+      z: 25, // On the beach, 25m inland from shore
     }, this.renderer.scene, 'male');
 
-    // Shelley (female) - with egg flaps, graceful and nurturing
+    // Shelley (female) - nearby, searching for shells
     this.organismManager.spawn('pacific_hermit_crab', {
-      x: -1.5,
-      y: 0.15,
-      z: -2.0,
+      x: -25, // Close to Sheldon
+      y: 0.5,
+      z: 28, // Slightly more inland
     }, this.renderer.scene, 'female');
 
-    // Add a few more hermit crabs (random genders)
+    // Add a few more hermit crabs (random genders) around the beach
     for (let i = 0; i < 3; i++) {
       this.organismManager.spawn('pacific_hermit_crab', {
-        x: Math.random() * 6 - 3,
-        y: 0.15,
-        z: Math.random() * 6 - 3,
+        x: (Math.random() - 0.5) * beachAreaX,
+        y: 0.5,
+        z: beachZoneZ.min + Math.random() * (beachZoneZ.max - beachZoneZ.min),
       }, this.renderer.scene);
     }
 
-    // Add Sea Anemone Home (player's home base)
+    // Add Sea Anemone Home (player's home base) - in a tide pool
     this.organismManager.spawn('sea_anemone_home', {
       x: 0,
       y: 0.1,
-      z: 0,
+      z: 10, // Tide pool area
     }, this.renderer.scene);
 
-    // Add Player-Controlled Clownfish (our hero!)
+    // Add Player-Controlled Clownfish (our hero!) - swimming in tide pool
     this.organismManager.spawn('clownfish', {
-      x: 0.5,
-      y: 0.5,
-      z: 0.5,
+      x: 2,
+      y: 1.5, // Swimming height
+      z: 10, // Near the anemone
     }, this.renderer.scene);
 
-    console.log(`✓ Spawned initial ecosystem with clownfish player and anemone home`);
+    console.log(`✓ Spawned initial ecosystem with Sheldon & Shelley on the beach!`);
   }
 
   start() {
