@@ -33,7 +33,7 @@ export class OrganismManager {
     this.environment = environment;
   }
 
-  spawn(speciesId: string, position: Position, scene?: THREE.Scene): Organism | null {
+  spawn(speciesId: string, position: Position, scene?: THREE.Scene, gender?: 'male' | 'female'): Organism | null {
     let organism: Organism | null = null;
 
     switch (speciesId) {
@@ -50,7 +50,7 @@ export class OrganismManager {
         organism = new OchreSeaStar(position, this.physicsWorld);
         break;
       case 'pacific_hermit_crab':
-        organism = new PacificHermitCrab(position, this.physicsWorld);
+        organism = new PacificHermitCrab(position, this.physicsWorld, gender);
         // Add shell mesh and articulated body group to scene for hermit crabs
         if (scene && organism instanceof PacificHermitCrab) {
           scene.add(organism.getShellMesh());

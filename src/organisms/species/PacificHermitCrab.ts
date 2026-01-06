@@ -52,16 +52,20 @@ export class PacificHermitCrab extends Organism {
   private walkCycle: number = 0;
   private isMoving: boolean = false;
 
+  // Gender and visual differences
+  private gender: 'male' | 'female';
+  private eggFlaps: THREE.Group[] = []; // For females
+
   // Profile/personality data
-  public profile = {
-    name: "Sheldon", // Our star crab!
-    personality: "Curious and adventurous",
-    favoriteFood: "Dried kelp bits",
-    shellPreference: "Spotted turban shells",
-    mood: "Content",
+  public profile: {
+    name: string;
+    personality: string;
+    favoriteFood: string;
+    shellPreference: string;
+    mood: string;
   };
 
-  constructor(position: Position, physicsWorld: PhysicsWorld) {
+  constructor(position: Position, physicsWorld: PhysicsWorld, gender?: 'male' | 'female') {
     super('pacific_hermit_crab', 'Pacific Hermit Crab', position, physicsWorld, 2);
 
     this.maxAge = 3650; // 10 years
@@ -69,6 +73,18 @@ export class PacificHermitCrab extends Organism {
     this.growthRate = 0.002;
     this.metabolismRate = 1.5;
     this.reproductionInterval = 180;
+
+    // Assign gender (random if not specified)
+    this.gender = gender || (Math.random() > 0.5 ? 'male' : 'female');
+
+    // Set name and personality based on gender
+    this.profile = {
+      name: this.gender === 'male' ? "Sheldon" : "Shelley",
+      personality: this.gender === 'male' ? "Curious and adventurous" : "Graceful and nurturing",
+      favoriteFood: this.gender === 'male' ? "Dried kelp bits" : "Fresh algae",
+      shellPreference: "Spotted turban shells",
+      mood: "Content",
+    };
 
     // Create body group for articulated parts
     this.bodyGroup = new THREE.Group();
@@ -119,6 +135,11 @@ export class PacificHermitCrab extends Organism {
 
     // Create eye stalks (2)
     this.createEyeStalks();
+
+    // Create egg flaps for females (pleopods/swimmerets)
+    if (this.gender === 'female') {
+      this.createEggFlaps();
+    }
 
     // Return the body mesh (physics will attach to this)
     return bodyMesh;
@@ -282,6 +303,43 @@ export class PacificHermitCrab extends Organism {
 
     this.eyeStalks.push(leftEyeGroup);
     this.bodyGroup.add(leftEyeGroup);
+  }
+
+  private createEggFlaps() {
+    // Pleopods/swimmerets - small flaps on the underside for carrying eggs
+    const flapMaterial = new THREE.MeshStandardMaterial({
+      color: 0xFF6B9D, // Pinkish for egg flaps
+      roughness: 0.6,
+      metalness: 0.1,
+    });
+
+    // 4 pairs of egg flaps (pleopods)
+    const flapPositions = [
+      { x: 0.04, z: -0.01, side: 1 },  // Right pair 1
+      { x: -0.04, z: -0.01, side: -1 }, // Left pair 1
+      { x: 0.04, z: -0.03, side: 1 },  // Right pair 2
+      { x: -0.04, z: -0.03, side: -1 }, // Left pair 2
+      { x: 0.04, z: -0.05, side: 1 },  // Right pair 3
+      { x: -0.04, z: -0.05, side: -1 }, // Left pair 3
+      { x: 0.04, z: -0.07, side: 1 },  // Right pair 4
+      { x: -0.04, z: -0.07, side: -1 }, // Left pair 4
+    ];
+
+    flapPositions.forEach((pos) => {
+      const flapGroup = new THREE.Group();
+      flapGroup.position.set(pos.x, -0.08, pos.z);
+
+      // Create flap (small oval-ish shape)
+      const flapGeom = new THREE.BoxGeometry(0.02, 0.002, 0.03);
+      const flap = new THREE.Mesh(flapGeom, flapMaterial);
+      flap.rotation.x = Math.PI / 6; // Angle slightly
+      flap.rotation.z = pos.side * Math.PI / 8;
+      flap.castShadow = true;
+      flapGroup.add(flap);
+
+      this.eggFlaps.push(flapGroup);
+      this.bodyGroup.add(flapGroup);
+    });
   }
 
   private createShellMesh(): THREE.Mesh {
@@ -639,6 +697,10 @@ export class PacificHermitCrab extends Organism {
 
   getCurrentActivity(): string {
     return this.currentActivity;
+  }
+
+  getGender(): 'male' | 'female' {
+    return this.gender;
   }
 
   getLastGroomTime(): number {
