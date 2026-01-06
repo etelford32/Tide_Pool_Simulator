@@ -24,7 +24,8 @@ export class Renderer {
       0.1,
       10000 // Extended to see 8km+ distances
     );
-    this.camera.position.set(-6, 10, 15);
+    // Start at regional view (1000m altitude) to see the 5-mile shoreline
+    this.camera.position.set(0, 1000, -500);
     this.camera.lookAt(0, 0, 0);
 
     // Create renderer
