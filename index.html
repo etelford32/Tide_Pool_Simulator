@@ -524,6 +524,39 @@
         </div>
     </div>
 
+    <!-- Simulation Telemetry Panel -->
+    <div id="telemetry" style="position: fixed; bottom: 0; left: 0; right: 0; background: rgba(0, 0, 0, 0.9); padding: 10px 20px; font-family: 'Courier New', monospace; font-size: 11px; color: #0f0; border-top: 2px solid #0f0; z-index: 150; max-height: 200px; overflow-y: auto;">
+        <div style="display: grid; grid-template-columns: repeat(4, 1fr); gap: 15px;">
+            <div>
+                <strong style="color: #0ff;">CAMERA:</strong>
+                <div id="telem-camera">Pos: (0, 0, 0)</div>
+                <div id="telem-camera-target">Target: (0, 0, 0)</div>
+            </div>
+            <div>
+                <strong style="color: #0ff;">ORGANISMS:</strong>
+                <div id="telem-organisms">Total: 0</div>
+                <div id="telem-crabs">Hermit Crabs: 0</div>
+                <div id="telem-sheldon">Sheldon: NOT FOUND</div>
+                <div id="telem-shelley">Shelley: NOT FOUND</div>
+            </div>
+            <div>
+                <strong style="color: #0ff;">RENDERING:</strong>
+                <div id="telem-scene-objects">Scene Objects: 0</div>
+                <div id="telem-fps">FPS: 0</div>
+                <div id="telem-delta">Delta: 0ms</div>
+            </div>
+            <div>
+                <strong style="color: #0ff;">PHYSICS:</strong>
+                <div id="telem-physics">Bodies: 0</div>
+                <div id="telem-time">Sim Time: 0d</div>
+            </div>
+        </div>
+        <div style="margin-top: 8px; padding-top: 8px; border-top: 1px solid #0f0;">
+            <strong style="color: #ff0;">DEBUG LOG:</strong>
+            <div id="telem-log" style="color: #fff; max-height: 60px; overflow-y: auto;"></div>
+        </div>
+    </div>
+
     <script type="module" src="/src/main.ts"></script>
 </body>
 </html>
