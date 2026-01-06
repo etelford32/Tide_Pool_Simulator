@@ -43,7 +43,7 @@ export class PacificHermitCrab extends Organism {
   private shellMesh: THREE.Mesh;
 
   // Articulated body parts for animation
-  private bodyGroup: THREE.Group = new THREE.Group();
+  private bodyGroup!: THREE.Group; // Initialized in createMesh() before super() property initializers run
   private legs: THREE.Group[] = [];
   private claws: THREE.Group[] = [];
   private eyeStalks: THREE.Group[] = [];
@@ -86,11 +86,13 @@ export class PacificHermitCrab extends Organism {
       mood: "Content",
     };
 
-    // Set body group name (already initialized at property level)
-    this.bodyGroup.name = 'CrabBodyGroup';
-
     // Create shell mesh
     this.shellMesh = this.createShellMesh();
+
+    // Create egg flaps for females (after gender is initialized)
+    if (this.gender === 'female') {
+      this.createEggFlaps();
+    }
   }
 
   protected createPhysicsBody(position: Position): RAPIER.RigidBody {
@@ -111,6 +113,12 @@ export class PacificHermitCrab extends Organism {
   }
 
   protected createMesh(): THREE.Mesh {
+    // Initialize bodyGroup if not already initialized (property initializers run after super())
+    if (!this.bodyGroup) {
+      this.bodyGroup = new THREE.Group();
+      this.bodyGroup.name = 'CrabBodyGroup';
+    }
+
     // Create main body sphere
     const bodyGeometry = new THREE.SphereGeometry(0.08, 12, 12);
     const bodyMaterial = new THREE.MeshStandardMaterial({
@@ -135,10 +143,7 @@ export class PacificHermitCrab extends Organism {
     // Create eye stalks (2)
     this.createEyeStalks();
 
-    // Create egg flaps for females (pleopods/swimmerets)
-    if (this.gender === 'female') {
-      this.createEggFlaps();
-    }
+    // Note: Egg flaps for females are created in constructor after gender is set
 
     // Return the body mesh (physics will attach to this)
     return bodyMesh;
