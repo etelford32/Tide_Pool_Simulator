@@ -3,7 +3,7 @@ import RAPIER from '@dimforge/rapier3d-compat';
 import { PhysicsWorld } from '../physics/PhysicsWorld';
 import { SimulationMode } from '../TidePoolSimulation';
 import { WaterSystem } from '../rendering/WaterSystem';
-import { TerrainSystem } from './TerrainSystem';
+import { TerrainChunkManager } from './TerrainChunkManager';
 import { MoonSystem } from './MoonSystem';
 import { MoistureSystem } from './MoistureSystem';
 
@@ -27,7 +27,7 @@ export class Environment {
 
   // Advanced water system
   private waterSystem: WaterSystem | null = null;
-  private terrainSystem: TerrainSystem | null = null;
+  private terrainChunkManager: TerrainChunkManager | null = null;
   private moonSystem: MoonSystem | null = null;
   private moistureSystem: MoistureSystem | null = null;
 
@@ -57,23 +57,18 @@ export class Environment {
     // Create moon system for tidal effects
     this.moonSystem = new MoonSystem(scene);
 
-    // Create terrain with realistic grade and slope variations
-    this.terrainSystem = new TerrainSystem(scene, physicsWorld);
-    this.terrainSystem.createTerrain();
-    this.terrainSystem.addTerrainDetails();
+    // Create chunked terrain manager for 5-mile shoreline
+    this.terrainChunkManager = new TerrainChunkManager(scene);
 
-    // Initialize moisture system
+    // Initialize moisture system (expanded to match new world bounds)
     const moistureBounds = new THREE.Box3(
-      new THREE.Vector3(-50, -5, -50),
-      new THREE.Vector3(50, 5, 50)
+      new THREE.Vector3(-4000, -10, -1000),
+      new THREE.Vector3(4000, 10, 1000)
     );
     this.moistureSystem = new MoistureSystem(moistureBounds, new THREE.Vector2(64, 64));
 
-    // Initialize advanced water system with realistic waves
-    const waterBounds = new THREE.Box3(
-      new THREE.Vector3(-50, -5, -25),
-      new THREE.Vector3(50, 5, 25)
-    );
+    // Initialize advanced water system with realistic waves (expanded to horizon)
+    const waterBounds = this.terrainChunkManager.getWorldBounds();
     this.waterSystem = new WaterSystem(scene, waterBounds);
 
     // Create ocean at the bottom of the screen (kept for distant water)
@@ -288,6 +283,11 @@ export class Environment {
     // Update moon system
     if (this.moonSystem) {
       this.moonSystem.update(simulationTime);
+    }
+
+    // Update terrain chunk manager for LOD and streaming
+    if (this.terrainChunkManager && camera) {
+      this.terrainChunkManager.update(camera);
     }
 
     // Update advanced water system if available
