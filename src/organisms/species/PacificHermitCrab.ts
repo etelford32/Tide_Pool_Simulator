@@ -43,7 +43,7 @@ export class PacificHermitCrab extends Organism {
   private shellMesh: THREE.Mesh;
 
   // Articulated body parts for animation
-  private bodyGroup: THREE.Group;
+  private bodyGroup: THREE.Group = new THREE.Group();
   private legs: THREE.Group[] = [];
   private claws: THREE.Group[] = [];
   private eyeStalks: THREE.Group[] = [];
@@ -86,8 +86,7 @@ export class PacificHermitCrab extends Organism {
       mood: "Content",
     };
 
-    // Create body group for articulated parts
-    this.bodyGroup = new THREE.Group();
+    // Set body group name (already initialized at property level)
     this.bodyGroup.name = 'CrabBodyGroup';
 
     // Create shell mesh
