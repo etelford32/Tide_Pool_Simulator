@@ -442,6 +442,13 @@ export class Environment {
     this._mode = mode;
   }
 
+  toggleMatrixVisualization(): boolean {
+    if (this.waterSystem) {
+      return this.waterSystem.toggleMatrixVisualization();
+    }
+    return false;
+  }
+
   reset() {
     this.params = {
       temperature: 15,

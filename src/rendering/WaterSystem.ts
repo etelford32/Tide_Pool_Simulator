@@ -414,6 +414,9 @@ export class WaterSystem {
     // Update field matrix physics
     this.fieldMatrix.update(deltaTime);
 
+    // Update matrix visualization if enabled
+    this.updateMatrixVisualization();
+
     // Throttled random wave generation (optimization)
     if (this.time - this.lastWaveTime > this.waveInterval) {
       const bounds = this.fieldMatrix.getBounds();
@@ -434,6 +437,50 @@ export class WaterSystem {
     return this.fieldMatrix;
   }
 
+  // Matrix visualization
+  private matrixVisualization: THREE.Group | null = null;
+  private matrixVisualizationEnabled: boolean = false;
+
+  /**
+   * Toggle 3D matrix field visualization
+   */
+  toggleMatrixVisualization(): boolean {
+    this.matrixVisualizationEnabled = !this.matrixVisualizationEnabled;
+
+    if (this.matrixVisualizationEnabled) {
+      // Create and add visualization
+      if (!this.matrixVisualization) {
+        this.matrixVisualization = this.fieldMatrix.createVisualization();
+      }
+      this.scene.add(this.matrixVisualization);
+      console.log('✓ 3D Matrix Field Visualization: ON');
+    } else {
+      // Remove visualization
+      if (this.matrixVisualization) {
+        this.scene.remove(this.matrixVisualization);
+      }
+      console.log('✓ 3D Matrix Field Visualization: OFF');
+    }
+
+    return this.matrixVisualizationEnabled;
+  }
+
+  /**
+   * Update matrix visualization if enabled
+   */
+  updateMatrixVisualization() {
+    if (this.matrixVisualizationEnabled && this.matrixVisualization) {
+      this.fieldMatrix.updateVisualization(this.matrixVisualization);
+    }
+  }
+
+  /**
+   * Check if matrix visualization is enabled
+   */
+  isMatrixVisualizationEnabled(): boolean {
+    return this.matrixVisualizationEnabled;
+  }
+
   /**
    * Cleanup
    */
@@ -442,6 +489,11 @@ export class WaterSystem {
       this.scene.remove(this.waterMesh);
       this.waterMesh.geometry.dispose();
       this.waterMaterial.dispose();
+    }
+
+    if (this.matrixVisualization) {
+      this.scene.remove(this.matrixVisualization);
+      this.matrixVisualization = null;
     }
   }
 }

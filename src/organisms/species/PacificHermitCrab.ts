@@ -42,6 +42,25 @@ export class PacificHermitCrab extends Organism {
   // Shell mesh
   private shellMesh: THREE.Mesh;
 
+  // Articulated body parts for animation
+  private bodyGroup: THREE.Group;
+  private legs: THREE.Group[] = [];
+  private claws: THREE.Group[] = [];
+  private eyeStalks: THREE.Group[] = [];
+
+  // Animation state
+  private walkCycle: number = 0;
+  private isMoving: boolean = false;
+
+  // Profile/personality data
+  public profile = {
+    name: "Sheldon", // Our star crab!
+    personality: "Curious and adventurous",
+    favoriteFood: "Dried kelp bits",
+    shellPreference: "Spotted turban shells",
+    mood: "Content",
+  };
+
   constructor(position: Position, physicsWorld: PhysicsWorld) {
     super('pacific_hermit_crab', 'Pacific Hermit Crab', position, physicsWorld, 2);
 
@@ -50,6 +69,10 @@ export class PacificHermitCrab extends Organism {
     this.growthRate = 0.002;
     this.metabolismRate = 1.5;
     this.reproductionInterval = 180;
+
+    // Create body group for articulated parts
+    this.bodyGroup = new THREE.Group();
+    this.bodyGroup.name = 'CrabBodyGroup';
 
     // Create shell mesh
     this.shellMesh = this.createShellMesh();
@@ -73,19 +96,192 @@ export class PacificHermitCrab extends Organism {
   }
 
   protected createMesh(): THREE.Mesh {
-    // Hermit crab body (legs and claws visible)
-    const bodyGeometry = new THREE.SphereGeometry(0.08, 8, 8);
+    // Create main body sphere
+    const bodyGeometry = new THREE.SphereGeometry(0.08, 12, 12);
     const bodyMaterial = new THREE.MeshStandardMaterial({
-      color: 0xFF6347, // Orangish-red legs
+      color: 0xFF6347, // Orangish-red body
       roughness: 0.7,
       metalness: 0.1,
     });
 
-    const mesh = new THREE.Mesh(bodyGeometry, bodyMaterial);
-    mesh.castShadow = true;
-    mesh.receiveShadow = true;
+    const bodyMesh = new THREE.Mesh(bodyGeometry, bodyMaterial);
+    bodyMesh.castShadow = true;
+    bodyMesh.receiveShadow = true;
 
-    return mesh;
+    // Add body to group
+    this.bodyGroup.add(bodyMesh);
+
+    // Create articulated legs (4 pairs = 8 legs)
+    this.createLegs();
+
+    // Create claws (2 claws, right one larger)
+    this.createClaws();
+
+    // Create eye stalks (2)
+    this.createEyeStalks();
+
+    // Return the body mesh (physics will attach to this)
+    return bodyMesh;
+  }
+
+  private createLegs() {
+    const legMaterial = new THREE.MeshStandardMaterial({
+      color: 0xFF4500, // Orange-red
+      roughness: 0.8,
+      metalness: 0.05,
+    });
+
+    // 4 pairs of legs (8 total)
+    const legPositions = [
+      { x: 0.06, z: 0.04, angle: Math.PI / 6 },     // Right front
+      { x: 0.06, z: 0.02, angle: Math.PI / 4 },     // Right mid-front
+      { x: 0.06, z: -0.02, angle: Math.PI / 3 },    // Right mid-back
+      { x: 0.06, z: -0.04, angle: Math.PI / 2.5 },  // Right back
+      { x: -0.06, z: 0.04, angle: -Math.PI / 6 },   // Left front
+      { x: -0.06, z: 0.02, angle: -Math.PI / 4 },   // Left mid-front
+      { x: -0.06, z: -0.02, angle: -Math.PI / 3 },  // Left mid-back
+      { x: -0.06, z: -0.04, angle: -Math.PI / 2.5 },// Left back
+    ];
+
+    legPositions.forEach((pos) => {
+      const legGroup = new THREE.Group();
+      legGroup.position.set(pos.x, -0.02, pos.z);
+
+      // Upper leg segment
+      const upperLegGeom = new THREE.CylinderGeometry(0.008, 0.01, 0.08, 6);
+      const upperLeg = new THREE.Mesh(upperLegGeom, legMaterial);
+      upperLeg.rotation.z = pos.angle;
+      upperLeg.position.y = -0.02;
+      upperLeg.castShadow = true;
+      legGroup.add(upperLeg);
+
+      // Lower leg segment (bent joint)
+      const lowerLegGeom = new THREE.CylinderGeometry(0.006, 0.008, 0.06, 6);
+      const lowerLeg = new THREE.Mesh(lowerLegGeom, legMaterial);
+      lowerLeg.rotation.z = pos.angle * 0.7;
+      const lowerOffset = Math.sin(pos.angle) * 0.04;
+      lowerLeg.position.set(lowerOffset, -0.06, 0);
+      lowerLeg.castShadow = true;
+      legGroup.add(lowerLeg);
+
+      // Foot (tiny tip)
+      const footGeom = new THREE.SphereGeometry(0.005, 4, 4);
+      const foot = new THREE.Mesh(footGeom, legMaterial);
+      foot.position.set(lowerOffset + Math.sin(pos.angle) * 0.03, -0.09, 0);
+      foot.castShadow = true;
+      legGroup.add(foot);
+
+      this.legs.push(legGroup);
+      this.bodyGroup.add(legGroup);
+    });
+  }
+
+  private createClaws() {
+    const clawMaterial = new THREE.MeshStandardMaterial({
+      color: 0xDC143C, // Crimson red
+      roughness: 0.7,
+      metalness: 0.15,
+    });
+
+    // Right claw (larger - dominant)
+    const rightClawGroup = this.createSingleClaw(clawMaterial, 1.2, true);
+    rightClawGroup.position.set(0.08, 0, 0.05);
+    this.claws.push(rightClawGroup);
+    this.bodyGroup.add(rightClawGroup);
+
+    // Left claw (smaller)
+    const leftClawGroup = this.createSingleClaw(clawMaterial, 0.9, false);
+    leftClawGroup.position.set(-0.08, 0, 0.05);
+    this.claws.push(leftClawGroup);
+    this.bodyGroup.add(leftClawGroup);
+  }
+
+  private createSingleClaw(material: THREE.MeshStandardMaterial, scale: number, isRight: boolean): THREE.Group {
+    const clawGroup = new THREE.Group();
+
+    // Claw arm
+    const armGeom = new THREE.CylinderGeometry(0.012 * scale, 0.015 * scale, 0.06 * scale, 8);
+    const arm = new THREE.Mesh(armGeom, material);
+    arm.rotation.z = isRight ? Math.PI / 6 : -Math.PI / 6;
+    arm.position.y = -0.01;
+    arm.castShadow = true;
+    clawGroup.add(arm);
+
+    // Claw pincer base
+    const pincerBaseGeom = new THREE.SphereGeometry(0.02 * scale, 8, 8);
+    const pincerBase = new THREE.Mesh(pincerBaseGeom, material);
+    const pincerX = isRight ? 0.02 * scale : -0.02 * scale;
+    pincerBase.position.set(pincerX, -0.04, 0.03);
+    pincerBase.castShadow = true;
+    clawGroup.add(pincerBase);
+
+    // Upper pincer
+    const upperPincerGeom = new THREE.BoxGeometry(0.025 * scale, 0.008 * scale, 0.035 * scale);
+    const upperPincer = new THREE.Mesh(upperPincerGeom, material);
+    upperPincer.position.set(pincerX, -0.03, 0.05);
+    upperPincer.rotation.x = -Math.PI / 8;
+    upperPincer.castShadow = true;
+    clawGroup.add(upperPincer);
+
+    // Lower pincer
+    const lowerPincerGeom = new THREE.BoxGeometry(0.025 * scale, 0.008 * scale, 0.035 * scale);
+    const lowerPincer = new THREE.Mesh(lowerPincerGeom, material);
+    lowerPincer.position.set(pincerX, -0.05, 0.05);
+    lowerPincer.rotation.x = Math.PI / 8;
+    lowerPincer.castShadow = true;
+    clawGroup.add(lowerPincer);
+
+    return clawGroup;
+  }
+
+  private createEyeStalks() {
+    const eyeStalkMaterial = new THREE.MeshStandardMaterial({
+      color: 0xFF6347,
+      roughness: 0.6,
+      metalness: 0.1,
+    });
+
+    const eyeMaterial = new THREE.MeshStandardMaterial({
+      color: 0x000000,
+      roughness: 0.3,
+      metalness: 0.8,
+    });
+
+    // Right eye stalk
+    const rightEyeGroup = new THREE.Group();
+    const rightStalk = new THREE.CylinderGeometry(0.004, 0.006, 0.04, 6);
+    const rightStalkMesh = new THREE.Mesh(rightStalk, eyeStalkMaterial);
+    rightStalkMesh.position.set(0.03, 0.06, 0.04);
+    rightStalkMesh.rotation.z = -Math.PI / 8;
+    rightStalkMesh.castShadow = true;
+    rightEyeGroup.add(rightStalkMesh);
+
+    const rightEye = new THREE.SphereGeometry(0.008, 8, 8);
+    const rightEyeMesh = new THREE.Mesh(rightEye, eyeMaterial);
+    rightEyeMesh.position.set(0.03, 0.08, 0.04);
+    rightEyeMesh.castShadow = true;
+    rightEyeGroup.add(rightEyeMesh);
+
+    this.eyeStalks.push(rightEyeGroup);
+    this.bodyGroup.add(rightEyeGroup);
+
+    // Left eye stalk
+    const leftEyeGroup = new THREE.Group();
+    const leftStalk = new THREE.CylinderGeometry(0.004, 0.006, 0.04, 6);
+    const leftStalkMesh = new THREE.Mesh(leftStalk, eyeStalkMaterial);
+    leftStalkMesh.position.set(-0.03, 0.06, 0.04);
+    leftStalkMesh.rotation.z = Math.PI / 8;
+    leftStalkMesh.castShadow = true;
+    leftEyeGroup.add(leftStalkMesh);
+
+    const leftEye = new THREE.SphereGeometry(0.008, 8, 8);
+    const leftEyeMesh = new THREE.Mesh(leftEye, eyeMaterial);
+    leftEyeMesh.position.set(-0.03, 0.08, 0.04);
+    leftEyeMesh.castShadow = true;
+    leftEyeGroup.add(leftEyeMesh);
+
+    this.eyeStalks.push(leftEyeGroup);
+    this.bodyGroup.add(leftEyeGroup);
   }
 
   private createShellMesh(): THREE.Mesh {
@@ -217,8 +413,17 @@ export class PacificHermitCrab extends Organism {
   private performActivity(deltaTime: number, env: EnvironmentParameters) {
     const currentPos = this.getPosition();
 
+    // Check velocity to determine if actually moving
+    const velocity = this.rigidBody.linvel();
+    const speed = Math.sqrt(velocity.x * velocity.x + velocity.z * velocity.z);
+    this.isMoving = speed > 0.01;
+
+    // Update mood based on activity
     switch (this.currentActivity) {
       case 'grooming':
+        this.profile.mood = "Grooming happily";
+        this.isMoving = false;
+
         // Shell grooming behavior
         this.shellCleanliness += (10 * deltaTime) / 86400;
         this.shellCleanliness = Math.min(100, this.shellCleanliness);
@@ -239,6 +444,9 @@ export class PacificHermitCrab extends Organism {
         break;
 
       case 'bathing':
+        this.profile.mood = "Bathing blissfully";
+        this.isMoving = false;
+
         // Bathing in water (foam bathing behavior)
         if (env.tideLevel > 0.5) {
           this.shellCleanliness += (20 * deltaTime) / 86400; // Faster than grooming
@@ -253,23 +461,25 @@ export class PacificHermitCrab extends Organism {
         break;
 
       case 'foraging':
+        this.profile.mood = this.hunger > 70 ? "Searching desperately" : "Foraging curiously";
+
         // Move around looking for food
         if (!this.movementTarget || this.movementTarget.distanceTo(currentPos) < 0.3) {
-          // Pick new random target
+          // Pick new random target on the sand (stay grounded)
           this.movementTarget = new THREE.Vector3(
             (Math.random() - 0.5) * 8,
-            currentPos.y,
+            0.1, // Stay on sand level
             (Math.random() - 0.5) * 8
           );
         }
 
-        // Move toward target
+        // Move toward target (scuttling!)
         const direction = this.movementTarget.clone().sub(currentPos).normalize();
         this.rigidBody.applyImpulse(
           {
-            x: direction.x * this.movementSpeed,
+            x: direction.x * this.movementSpeed * 1.5, // Increased speed for better scuttling
             y: 0,
-            z: direction.z * this.movementSpeed,
+            z: direction.z * this.movementSpeed * 1.5,
           },
           true
         );
@@ -281,10 +491,14 @@ export class PacificHermitCrab extends Organism {
           this.hunger = Math.max(0, this.hunger);
           this.energy += 10;
           this.energy = Math.min(100, this.energy);
+          this.profile.mood = "Munching happily";
         }
         break;
 
       case 'shell_seeking':
+        this.profile.mood = "Seeking upgrade";
+        this.isMoving = true;
+
         // Look for better shell (simplified - just improve current shell)
         if (Math.random() < 0.1 * deltaTime) {
           // Found a better shell!
@@ -292,10 +506,14 @@ export class PacificHermitCrab extends Organism {
           this.shellQuality = Math.min(100, this.shellQuality);
           this.happiness += 15;
           this.currentActivity = 'resting';
+          this.profile.mood = "Delighted with new shell!";
         }
         break;
 
       case 'resting':
+        this.profile.mood = this.happiness > 70 ? "Content" : "Resting quietly";
+        this.isMoving = false;
+
         // Rest and recover
         this.energy += (0.5 * deltaTime) / 86400;
         this.energy = Math.min(100, this.energy);
@@ -327,18 +545,75 @@ export class PacificHermitCrab extends Organism {
   syncVisual() {
     super.syncVisual();
 
+    const pos = this.rigidBody.translation();
+    const rotation = this.rigidBody.rotation();
+
+    // Update body group position
+    if (this.bodyGroup) {
+      this.bodyGroup.position.set(pos.x, pos.y, pos.z);
+      this.bodyGroup.quaternion.set(rotation.x, rotation.y, rotation.z, rotation.w);
+    }
+
     // Update shell position to follow body
     if (this.shellMesh) {
-      const pos = this.rigidBody.translation();
       this.shellMesh.position.set(pos.x, pos.y + 0.1, pos.z);
-
-      const rotation = this.rigidBody.rotation();
       this.shellMesh.quaternion.set(rotation.x, rotation.y, rotation.z, rotation.w);
     }
+
+    // Animate legs if moving (scuttling animation!)
+    this.animateScuttling();
+  }
+
+  private animateScuttling() {
+    if (!this.isMoving) {
+      // Reset legs to neutral position when not moving
+      this.legs.forEach((leg) => {
+        leg.rotation.y = 0;
+        leg.rotation.x = 0;
+      });
+      return;
+    }
+
+    // Scuttling animation - alternating leg pairs
+    this.walkCycle += 0.15;
+
+    this.legs.forEach((leg, index) => {
+      // Legs move in pairs, alternating left/right
+      const isRightSide = index < 4;
+      const pairIndex = index % 4;
+
+      // Create wave motion down the legs
+      const phase = this.walkCycle + (pairIndex * Math.PI / 4);
+
+      // Scuttling motion (side-to-side and up-down)
+      if (isRightSide) {
+        leg.rotation.y = Math.sin(phase) * 0.3;
+        leg.rotation.x = Math.cos(phase) * 0.2;
+      } else {
+        leg.rotation.y = Math.sin(phase + Math.PI) * 0.3;
+        leg.rotation.x = Math.cos(phase + Math.PI) * 0.2;
+      }
+    });
+
+    // Subtle claw movement when walking
+    this.claws.forEach((claw, i) => {
+      const phase = this.walkCycle + (i * Math.PI);
+      claw.rotation.z = Math.sin(phase) * 0.1;
+    });
+
+    // Eye stalks bob slightly
+    this.eyeStalks.forEach((eye, i) => {
+      const phase = this.walkCycle + (i * Math.PI / 2);
+      eye.rotation.x = Math.sin(phase) * 0.05;
+    });
   }
 
   getMesh(): THREE.Mesh {
     return this.mesh;
+  }
+
+  getBodyGroup(): THREE.Group {
+    return this.bodyGroup;
   }
 
   getShellMesh(): THREE.Mesh {
@@ -376,6 +651,25 @@ export class PacificHermitCrab extends Organism {
 
   destroy() {
     super.destroy();
+
+    // Remove and dispose body group (includes legs, claws, eyes)
+    if (this.bodyGroup && this.bodyGroup.parent) {
+      this.bodyGroup.parent.remove(this.bodyGroup);
+    }
+
+    // Dispose all body parts
+    this.bodyGroup.traverse((child) => {
+      if (child instanceof THREE.Mesh) {
+        if (child.geometry) child.geometry.dispose();
+        if (child.material) {
+          if (Array.isArray(child.material)) {
+            child.material.forEach((m: THREE.Material) => m.dispose());
+          } else {
+            child.material.dispose();
+          }
+        }
+      }
+    });
 
     // Remove shell mesh
     if (this.shellMesh.parent) {

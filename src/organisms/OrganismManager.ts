@@ -51,9 +51,10 @@ export class OrganismManager {
         break;
       case 'pacific_hermit_crab':
         organism = new PacificHermitCrab(position, this.physicsWorld);
-        // Add shell mesh to scene for hermit crabs
+        // Add shell mesh and articulated body group to scene for hermit crabs
         if (scene && organism instanceof PacificHermitCrab) {
           scene.add(organism.getShellMesh());
+          scene.add(organism.getBodyGroup());
         }
         break;
       case 'clownfish':
@@ -182,5 +183,12 @@ export class OrganismManager {
       }
     }
     return null;
+  }
+
+  /**
+   * Get all organisms (for selection system)
+   */
+  getAllOrganisms(): Organism[] {
+    return this.organisms;
   }
 }

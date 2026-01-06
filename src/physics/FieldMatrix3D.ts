@@ -359,4 +359,132 @@ export class FieldMatrix3D {
   getBounds(): THREE.Box3 {
     return this.bounds.clone();
   }
+
+  /**
+   * Create a visual representation of the 3D field matrix
+   * Returns a THREE.Group containing the visualization
+   */
+  createVisualization(): THREE.Group {
+    const group = new THREE.Group();
+    group.name = 'FieldMatrix3D_Visualization';
+
+    // Create grid helper for each level
+    const size = new THREE.Vector3();
+    this.bounds.getSize(size);
+
+    // Create grid points at field resolution
+    const pointsGeometry = new THREE.BufferGeometry();
+    const positions: number[] = [];
+    const colors: number[] = [];
+
+    for (let x = 0; x < this.resolution.x; x++) {
+      for (let y = 0; y < this.resolution.y; y++) {
+        for (let z = 0; z < this.resolution.z; z++) {
+          const worldPos = this.gridToWorld(new THREE.Vector3(x, y, z));
+          positions.push(worldPos.x, worldPos.y, worldPos.z);
+
+          // Color based on velocity magnitude
+          const vel = this.velocityField[x][y][z];
+          const speed = vel.length();
+          const normalizedSpeed = Math.min(speed / 5.0, 1.0);
+
+          // Blue to red gradient based on speed
+          colors.push(
+            normalizedSpeed,
+            0.5 * (1 - normalizedSpeed),
+            1 - normalizedSpeed
+          );
+        }
+      }
+    }
+
+    pointsGeometry.setAttribute('position', new THREE.Float32BufferAttribute(positions, 3));
+    pointsGeometry.setAttribute('color', new THREE.Float32BufferAttribute(colors, 3));
+
+    const pointsMaterial = new THREE.PointsMaterial({
+      size: 0.15,
+      vertexColors: true,
+      transparent: true,
+      opacity: 0.6,
+      sizeAttenuation: true,
+    });
+
+    const points = new THREE.Points(pointsGeometry, pointsMaterial);
+    group.add(points);
+
+    // Add bounding box wireframe
+    const boxHelper = new THREE.Box3Helper(this.bounds, 0x00ff00);
+    (boxHelper.material as THREE.LineBasicMaterial).transparent = true;
+    (boxHelper.material as THREE.LineBasicMaterial).opacity = 0.5;
+    group.add(boxHelper);
+
+    // Add velocity vectors (sample subset to avoid clutter)
+    const arrowHelper = new THREE.Group();
+    const step = 4; // Sample every 4th point to reduce clutter
+
+    for (let x = 0; x < this.resolution.x; x += step) {
+      for (let y = 0; y < this.resolution.y; y += step) {
+        for (let z = 0; z < this.resolution.z; z += step) {
+          const worldPos = this.gridToWorld(new THREE.Vector3(x, y, z));
+          const vel = this.velocityField[x][y][z];
+
+          if (vel.length() > 0.01) {
+            const dir = vel.clone().normalize();
+            const length = Math.min(vel.length() * 0.5, 1.0);
+            const arrow = new THREE.ArrowHelper(
+              dir,
+              worldPos,
+              length,
+              0xffff00,
+              length * 0.2,
+              length * 0.15
+            );
+            (arrow.line.material as THREE.LineBasicMaterial).transparent = true;
+            (arrow.line.material as THREE.LineBasicMaterial).opacity = 0.4;
+            (arrow.cone.material as THREE.MeshBasicMaterial).transparent = true;
+            (arrow.cone.material as THREE.MeshBasicMaterial).opacity = 0.4;
+            arrowHelper.add(arrow);
+          }
+        }
+      }
+    }
+
+    group.add(arrowHelper);
+
+    return group;
+  }
+
+  /**
+   * Update visualization colors based on current field state
+   */
+  updateVisualization(visualizationGroup: THREE.Group) {
+    const points = visualizationGroup.children.find(
+      (child: THREE.Object3D) => child instanceof THREE.Points
+    ) as THREE.Points | undefined;
+
+    if (points && points.geometry) {
+      const colors: number[] = [];
+      let idx = 0;
+
+      for (let x = 0; x < this.resolution.x; x++) {
+        for (let y = 0; y < this.resolution.y; y++) {
+          for (let z = 0; z < this.resolution.z; z++) {
+            const vel = this.velocityField[x][y][z];
+            const speed = vel.length();
+            const normalizedSpeed = Math.min(speed / 5.0, 1.0);
+
+            colors.push(
+              normalizedSpeed,
+              0.5 * (1 - normalizedSpeed),
+              1 - normalizedSpeed
+            );
+            idx++;
+          }
+        }
+      }
+
+      points.geometry.setAttribute('color', new THREE.Float32BufferAttribute(colors, 3));
+      points.geometry.attributes.color.needsUpdate = true;
+    }
+  }
 }
