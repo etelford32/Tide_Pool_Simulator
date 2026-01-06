@@ -33,6 +33,11 @@ export class TidePoolSimulation {
   private mouse: THREE.Vector2;
   private selectedOrganism: any | null = null;
 
+  // Telemetry tracking
+  private frameCount: number = 0;
+  private fpsUpdateTime: number = 0;
+  private currentFPS: number = 0;
+
   constructor() {
     this.physicsWorld = new PhysicsWorld();
     this.renderer = new Renderer();
@@ -74,6 +79,8 @@ export class TidePoolSimulation {
     this.spawnInitialEcosystem();
 
     console.log('✓ Simulation initialized');
+    this.debugLog('Simulation initialized successfully', '#0f0');
+    this.debugLog(`Camera at: (${this.renderer.camera.position.x.toFixed(1)}, ${this.renderer.camera.position.y.toFixed(1)}, ${this.renderer.camera.position.z.toFixed(1)})`, '#0ff');
   }
 
   private spawnInitialEcosystem() {
@@ -125,18 +132,23 @@ export class TidePoolSimulation {
     // Place them on the sandy beach where they belong!
 
     // Sheldon (male) - the adventurous one, exploring the beach
-    this.organismManager.spawn('pacific_hermit_crab', {
+    const sheldon = this.organismManager.spawn('pacific_hermit_crab', {
       x: -30, // 30m west of center
       y: 0.5, // Slightly elevated for visibility
       z: 25, // On the beach, 25m inland from shore
     }, this.renderer.scene, 'male');
 
     // Shelley (female) - nearby, searching for shells
-    this.organismManager.spawn('pacific_hermit_crab', {
+    const shelley = this.organismManager.spawn('pacific_hermit_crab', {
       x: -25, // Close to Sheldon
       y: 0.5,
       z: 28, // Slightly more inland
     }, this.renderer.scene, 'female');
+
+    console.log(`✓ Spawned Sheldon at (-30, 0.5, 25):`, sheldon);
+    console.log(`✓ Spawned Shelley at (-25, 0.5, 28):`, shelley);
+    this.debugLog('Sheldon spawned at (-30, 0.5, 25)', '#ff69b4');
+    this.debugLog('Shelley spawned at (-25, 0.5, 28)', '#ff1493');
 
     // Add a few more hermit crabs (random genders) around the beach
     for (let i = 0; i < 3; i++) {
@@ -162,6 +174,7 @@ export class TidePoolSimulation {
     }, this.renderer.scene);
 
     console.log(`✓ Spawned initial ecosystem with Sheldon & Shelley on the beach!`);
+    this.debugLog(`Total organisms spawned: ${this.organismManager.getAllOrganisms().length}`, '#0f0');
   }
 
   start() {
@@ -221,6 +234,9 @@ export class TidePoolSimulation {
     if (this.selectedOrganism) {
       this.updateCreatureProfile();
     }
+
+    // Update telemetry display
+    this.updateTelemetry(deltaTime);
   }
 
   private render() {
@@ -505,6 +521,116 @@ export class TidePoolSimulation {
 
     if (shellQualityEl && 'getShellQuality' in organism) {
       shellQualityEl.textContent = `${Math.round(organism.getShellQuality())}%`;
+    }
+  }
+
+  private updateTelemetry(deltaTime: number) {
+    // Update FPS calculation
+    this.frameCount++;
+    const currentTime = performance.now();
+
+    if (currentTime - this.fpsUpdateTime >= 1000) {
+      this.currentFPS = this.frameCount;
+      this.frameCount = 0;
+      this.fpsUpdateTime = currentTime;
+    }
+
+    // Camera telemetry
+    const camPosEl = document.getElementById('telem-camera');
+    const camTargetEl = document.getElementById('telem-camera-target');
+
+    if (camPosEl) {
+      const pos = this.renderer.camera.position;
+      camPosEl.textContent = `Pos: (${pos.x.toFixed(1)}, ${pos.y.toFixed(1)}, ${pos.z.toFixed(1)})`;
+    }
+
+    if (camTargetEl && this.cameraController) {
+      const target = this.cameraController.getTarget();
+      camTargetEl.textContent = `Target: (${target.x.toFixed(1)}, ${target.y.toFixed(1)}, ${target.z.toFixed(1)})`;
+    }
+
+    // Organism telemetry
+    const organisms = this.organismManager.getAllOrganisms();
+    const crabs = organisms.filter((org: any) => org.speciesId === 'pacific_hermit_crab');
+
+    const organismsEl = document.getElementById('telem-organisms');
+    const crabsEl = document.getElementById('telem-crabs');
+    const sheldonEl = document.getElementById('telem-sheldon');
+    const shelleyEl = document.getElementById('telem-shelley');
+
+    if (organismsEl) organismsEl.textContent = `Total: ${organisms.length}`;
+    if (crabsEl) crabsEl.textContent = `Hermit Crabs: ${crabs.length}`;
+
+    // Find Sheldon and Shelley specifically
+    const sheldon = crabs.find((c: any) => c.profile?.name === 'Sheldon');
+    const shelley = crabs.find((c: any) => c.profile?.name === 'Shelley');
+
+    if (sheldonEl) {
+      if (sheldon) {
+        const pos = sheldon.getPosition();
+        sheldonEl.textContent = `Sheldon: (${pos.x.toFixed(1)}, ${pos.y.toFixed(1)}, ${pos.z.toFixed(1)})`;
+        sheldonEl.style.color = '#0f0';
+      } else {
+        sheldonEl.textContent = 'Sheldon: NOT FOUND';
+        sheldonEl.style.color = '#f00';
+      }
+    }
+
+    if (shelleyEl) {
+      if (shelley) {
+        const pos = shelley.getPosition();
+        shelleyEl.textContent = `Shelley: (${pos.x.toFixed(1)}, ${pos.y.toFixed(1)}, ${pos.z.toFixed(1)})`;
+        shelleyEl.style.color = '#0f0';
+      } else {
+        shelleyEl.textContent = 'Shelley: NOT FOUND';
+        shelleyEl.style.color = '#f00';
+      }
+    }
+
+    // Rendering telemetry
+    const sceneObjectsEl = document.getElementById('telem-scene-objects');
+    const fpsEl = document.getElementById('telem-fps');
+    const deltaEl = document.getElementById('telem-delta');
+
+    if (sceneObjectsEl) {
+      sceneObjectsEl.textContent = `Scene Objects: ${this.renderer.scene.children.length}`;
+    }
+
+    if (fpsEl) {
+      const color = this.currentFPS < 30 ? '#f00' : this.currentFPS < 50 ? '#ff0' : '#0f0';
+      fpsEl.innerHTML = `FPS: <span style="color: ${color}">${this.currentFPS}</span>`;
+    }
+
+    if (deltaEl) {
+      deltaEl.textContent = `Delta: ${(deltaTime * 1000).toFixed(1)}ms`;
+    }
+
+    // Physics telemetry
+    const physicsEl = document.getElementById('telem-physics');
+    const timeEl = document.getElementById('telem-time');
+
+    if (physicsEl) {
+      // TODO: Get actual physics body count from PhysicsWorld if available
+      physicsEl.textContent = `Bodies: ${organisms.length}`;
+    }
+
+    if (timeEl) {
+      timeEl.textContent = `Sim Time: ${this.simulationTime.toFixed(2)}d`;
+    }
+  }
+
+  private debugLog(message: string, color: string = '#fff') {
+    const logEl = document.getElementById('telem-log');
+    if (logEl) {
+      const timestamp = new Date().toLocaleTimeString();
+      const entry = `<div style="color: ${color}">[${timestamp}] ${message}</div>`;
+      logEl.innerHTML = entry + logEl.innerHTML;
+
+      // Keep only last 10 entries
+      const entries = logEl.children;
+      while (entries.length > 10) {
+        logEl.removeChild(entries[entries.length - 1]);
+      }
     }
   }
 
