@@ -52,6 +52,9 @@ export class TidePoolSimulation {
     // Set up camera UI controls
     this.setupCameraControls();
 
+    // Set up matrix visualization toggle
+    this.setupMatrixVisualizationToggle();
+
     // Create initial environment
     this.environment.createTidePool(this.physicsWorld, this.renderer.scene);
 
@@ -309,6 +312,22 @@ export class TidePoolSimulation {
           this.cameraController!.setMode('orbit');
           toggleModeBtn.textContent = '🔄 Switch to Free-Fly';
           console.log('📷 ORBIT mode: Drag=Rotate, WASD=Pan');
+        }
+      });
+    }
+  }
+
+  private setupMatrixVisualizationToggle() {
+    const toggleBtn = document.getElementById('toggle-matrix-viz');
+    if (toggleBtn) {
+      toggleBtn.addEventListener('click', () => {
+        const isEnabled = this.environment.toggleMatrixVisualization();
+        if (isEnabled) {
+          toggleBtn.textContent = '✅ Hide 3D Matrix Field';
+          toggleBtn.classList.add('active');
+        } else {
+          toggleBtn.textContent = '🔲 Show 3D Matrix Field';
+          toggleBtn.classList.remove('active');
         }
       });
     }
