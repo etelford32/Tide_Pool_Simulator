@@ -171,6 +171,17 @@ export class WaterSystem {
         varying vec2 vUv;
         varying float vDepth;
 
+        // THREE.js fog uniforms (automatically provided)
+        #ifdef USE_FOG
+          uniform vec3 fogColor;
+          #ifdef FOG_EXP2
+            uniform float fogDensity;
+          #else
+            uniform float fogNear;
+            uniform float fogFar;
+          #endif
+        #endif
+
         // Improved noise function for caustics
         float hash(vec2 p) {
           return fract(sin(dot(p, vec2(127.1, 311.7))) * 43758.5453);
@@ -271,12 +282,24 @@ export class WaterSystem {
           float alpha = 0.80 + depthNormalized * 0.15 + fresnel * 0.05;
           alpha = clamp(alpha, 0.7, 0.98);
 
+          // Apply fog for atmospheric perspective
+          #ifdef USE_FOG
+            float depth = length(vWorldPosition - cameraPosition);
+            #ifdef FOG_EXP2
+              float fogFactor = 1.0 - exp(-fogDensity * fogDensity * depth * depth);
+            #else
+              float fogFactor = smoothstep(fogNear, fogFar, depth);
+            #endif
+            color = mix(color, fogColor, fogFactor);
+          #endif
+
           gl_FragColor = vec4(color, alpha);
         }
       `,
       transparent: true,
       side: THREE.DoubleSide,
       depthWrite: false, // Improved transparency sorting
+      fog: true, // Enable fog integration
     });
   }
 

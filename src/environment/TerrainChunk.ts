@@ -210,6 +210,7 @@ export class TerrainChunk {
       roughness: 0.9,
       metalness: 0.1,
       flatShading: false,
+      fog: true, // Enable atmospheric fog
     });
 
     this.mesh = new THREE.Mesh(this.geometries[this.currentLOD], material);

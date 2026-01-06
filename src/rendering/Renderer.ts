@@ -13,14 +13,16 @@ export class Renderer {
     // Create scene
     this.scene = new THREE.Scene();
     this.scene.background = new THREE.Color(0x87ceeb); // Sky blue
-    this.scene.fog = new THREE.Fog(0x87ceeb, 10, 50);
 
-    // Create camera - adjusted for better view of the scene
+    // Atmospheric fog for 5-mile shoreline (1000m to 5000m)
+    this.scene.fog = new THREE.Fog(0x87ceeb, 1000, 5000);
+
+    // Create camera - extended far plane for horizon view
     this.camera = new THREE.PerspectiveCamera(
       75,
       window.innerWidth / window.innerHeight,
       0.1,
-      1000
+      10000 // Extended to see 8km+ distances
     );
     this.camera.position.set(-6, 10, 15);
     this.camera.lookAt(0, 0, 0);
@@ -39,14 +41,14 @@ export class Renderer {
     this.sunLight = new THREE.DirectionalLight(0xffffff, 0.8);
     this.sunLight.position.set(10, 20, 10);
     this.sunLight.castShadow = true;
-    this.sunLight.shadow.mapSize.width = 2048;
-    this.sunLight.shadow.mapSize.height = 2048;
+    this.sunLight.shadow.mapSize.width = 4096; // Increased for larger world
+    this.sunLight.shadow.mapSize.height = 4096;
     this.sunLight.shadow.camera.near = 0.5;
-    this.sunLight.shadow.camera.far = 50;
-    this.sunLight.shadow.camera.left = -20;
-    this.sunLight.shadow.camera.right = 20;
-    this.sunLight.shadow.camera.top = 20;
-    this.sunLight.shadow.camera.bottom = -20;
+    this.sunLight.shadow.camera.far = 5000; // Extended for horizon
+    this.sunLight.shadow.camera.left = -2000; // Expanded for 8km world
+    this.sunLight.shadow.camera.right = 2000;
+    this.sunLight.shadow.camera.top = 2000;
+    this.sunLight.shadow.camera.bottom = -2000;
     this.scene.add(this.sunLight);
 
     // Add hemisphere light for better ambient lighting
