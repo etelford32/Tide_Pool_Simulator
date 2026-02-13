@@ -75,6 +75,9 @@ export class TidePoolSimulation {
     // Create initial environment
     this.environment.createTidePool(this.physicsWorld, this.renderer.scene);
 
+    // Give organism manager a scene reference for reproduction
+    this.organismManager.setScene(this.renderer.scene);
+
     // Add initial organisms
     this.spawnInitialEcosystem();
 

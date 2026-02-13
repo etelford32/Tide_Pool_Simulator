@@ -27,10 +27,15 @@ export class OrganismManager {
   private organisms: Organism[] = [];
   private physicsWorld: PhysicsWorld;
   private environment: Environment;
+  private scene: THREE.Scene | null = null;
 
   constructor(physicsWorld: PhysicsWorld, environment: Environment) {
     this.physicsWorld = physicsWorld;
     this.environment = environment;
+  }
+
+  setScene(scene: THREE.Scene) {
+    this.scene = scene;
   }
 
   spawn(speciesId: string, position: Position, scene?: THREE.Scene, gender?: 'male' | 'female'): Organism | null {
@@ -51,11 +56,6 @@ export class OrganismManager {
         break;
       case 'pacific_hermit_crab':
         organism = new PacificHermitCrab(position, this.physicsWorld, gender);
-        // Add shell mesh and articulated body group to scene for hermit crabs
-        if (scene && organism instanceof PacificHermitCrab) {
-          scene.add(organism.getShellMesh());
-          scene.add(organism.getBodyGroup());
-        }
         break;
       case 'clownfish':
         organism = new Clownfish(position, this.physicsWorld);
@@ -66,6 +66,18 @@ export class OrganismManager {
       default:
         console.warn(`Unknown species: ${speciesId}`);
         return null;
+    }
+
+    // Add organism mesh to scene
+    const targetScene = scene || this.scene;
+    if (targetScene && organism) {
+      if (organism instanceof PacificHermitCrab) {
+        // Hermit crabs use bodyGroup (contains body mesh) + separate shell mesh
+        targetScene.add(organism.getShellMesh());
+        targetScene.add(organism.getBodyGroup());
+      } else {
+        targetScene.add(organism.getMesh());
+      }
     }
 
     this.organisms.push(organism);
@@ -128,6 +140,16 @@ export class OrganismManager {
       const offspring = organism.checkReproduction(simulationTime);
       if (offspring) {
         newOrganisms.push(offspring);
+
+        // Add offspring mesh to scene
+        if (this.scene) {
+          if (offspring instanceof PacificHermitCrab) {
+            this.scene.add(offspring.getShellMesh());
+            this.scene.add(offspring.getBodyGroup());
+          } else {
+            this.scene.add(offspring.getMesh());
+          }
+        }
       }
     }
 
