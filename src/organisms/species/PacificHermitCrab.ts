@@ -119,6 +119,11 @@ export class PacificHermitCrab extends Organism {
       this.bodyGroup.name = 'CrabBodyGroup';
     }
 
+    // Initialize arrays - property initializers haven't run yet when called from super()
+    if (!this.legs) this.legs = [];
+    if (!this.claws) this.claws = [];
+    if (!this.eyeStalks) this.eyeStalks = [];
+
     // Create main body sphere
     const bodyGeometry = new THREE.SphereGeometry(0.08, 12, 12);
     const bodyMaterial = new THREE.MeshStandardMaterial({
