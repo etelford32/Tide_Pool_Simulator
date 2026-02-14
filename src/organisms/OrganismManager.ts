@@ -72,9 +72,10 @@ export class OrganismManager {
     const targetScene = scene || this.scene;
     if (targetScene && organism) {
       if (organism instanceof PacificHermitCrab) {
-        // Hermit crabs use bodyGroup (contains body mesh) + separate shell mesh
-        targetScene.add(organism.getShellMesh());
+        // Hermit crabs use bodyGroup (contains body mesh) + separate shell + trail
         targetScene.add(organism.getBodyGroup());
+        targetScene.add(organism.getShellMesh());
+        targetScene.add(organism.getTrailGroup());
       } else {
         targetScene.add(organism.getMesh());
       }
@@ -144,8 +145,9 @@ export class OrganismManager {
         // Add offspring mesh to scene
         if (this.scene) {
           if (offspring instanceof PacificHermitCrab) {
-            this.scene.add(offspring.getShellMesh());
             this.scene.add(offspring.getBodyGroup());
+            this.scene.add(offspring.getShellMesh());
+            this.scene.add(offspring.getTrailGroup());
           } else {
             this.scene.add(offspring.getMesh());
           }

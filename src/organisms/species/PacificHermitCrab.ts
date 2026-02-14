@@ -30,7 +30,7 @@ export class PacificHermitCrab extends Organism {
   private shellCleanliness: number = 100; // 0-100, decreases over time
 
   // Behavioral state
-  private currentActivity: 'foraging' | 'grooming' | 'bathing' | 'resting' | 'shell_seeking' = 'resting';
+  private currentActivity: 'foraging' | 'grooming' | 'bathing' | 'resting' | 'shell_seeking' | 'seeking_water' = 'resting';
   private activityTimer: number = 0;
   private _lastGroomTime: number = 0; // Reserved for future behavior tracking
   private _lastBathTime: number = 0; // Reserved for future behavior tracking
@@ -56,6 +56,13 @@ export class PacificHermitCrab extends Organism {
   private gender: 'male' | 'female';
   private eggFlaps: THREE.Group[] = []; // For females
 
+  // Slime trail system
+  private trailGroup: THREE.Group = new THREE.Group();
+  private trailMarkers: { mesh: THREE.Mesh; age: number }[] = [];
+  private lastTrailPos: THREE.Vector3 = new THREE.Vector3();
+  private trailTimer: number = 0;
+  private static trailGeometry: THREE.CircleGeometry | null = null;
+
   // Profile/personality data
   public profile: {
     name: string;
@@ -67,6 +74,10 @@ export class PacificHermitCrab extends Organism {
 
   constructor(position: Position, physicsWorld: PhysicsWorld, gender?: 'male' | 'female') {
     super('pacific_hermit_crab', 'Pacific Hermit Crab', position, physicsWorld, 2);
+
+    // NOTE: With useDefineForClassFields:true, field initializers have NOW run.
+    // bodyGroup, legs, claws, eyeStalks are all properly initialized to their
+    // declared defaults. Any values set during super()/createMesh() were overwritten.
 
     this.maxAge = 3650; // 10 years
     this.maxSize = 3; // 3cm body + shell
@@ -89,10 +100,12 @@ export class PacificHermitCrab extends Organism {
     // Create shell mesh
     this.shellMesh = this.createShellMesh();
 
-    // Create egg flaps for females (after gender is initialized)
-    if (this.gender === 'female') {
-      this.createEggFlaps();
-    }
+    // Build articulated body (bodyGroup, legs, claws, eyes, egg flaps)
+    // MUST happen here after field initializers have run, not in createMesh()
+    this.buildArticulatedBody();
+
+    // Name the trail group for debugging
+    this.trailGroup.name = 'CrabTrail';
   }
 
   protected createPhysicsBody(position: Position): RAPIER.RigidBody {
@@ -113,21 +126,13 @@ export class PacificHermitCrab extends Organism {
   }
 
   protected createMesh(): THREE.Mesh {
-    // Initialize bodyGroup if not already initialized (property initializers run after super())
-    if (!this.bodyGroup) {
-      this.bodyGroup = new THREE.Group();
-      this.bodyGroup.name = 'CrabBodyGroup';
-    }
-
-    // Initialize arrays - property initializers haven't run yet when called from super()
-    if (!this.legs) this.legs = [];
-    if (!this.claws) this.claws = [];
-    if (!this.eyeStalks) this.eyeStalks = [];
-
-    // Create main body sphere
+    // IMPORTANT: Only return a plain mesh here. Do NOT touch bodyGroup, legs,
+    // claws, etc. With useDefineForClassFields:true, field initializers run
+    // AFTER super() returns, so any values set here get overwritten to undefined.
+    // All articulated body setup happens in buildArticulatedBody().
     const bodyGeometry = new THREE.SphereGeometry(0.08, 12, 12);
     const bodyMaterial = new THREE.MeshStandardMaterial({
-      color: 0xFF6347, // Orangish-red body
+      color: 0xFF6347,
       roughness: 0.7,
       metalness: 0.1,
     });
@@ -135,9 +140,15 @@ export class PacificHermitCrab extends Organism {
     const bodyMesh = new THREE.Mesh(bodyGeometry, bodyMaterial);
     bodyMesh.castShadow = true;
     bodyMesh.receiveShadow = true;
+    return bodyMesh;
+  }
 
-    // Add body to group
-    this.bodyGroup.add(bodyMesh);
+  private buildArticulatedBody() {
+    this.bodyGroup = new THREE.Group();
+    this.bodyGroup.name = 'CrabBodyGroup';
+
+    // Add the body mesh (from createMesh) to the group
+    this.bodyGroup.add(this.mesh);
 
     // Create articulated legs (4 pairs = 8 legs)
     this.createLegs();
@@ -148,10 +159,10 @@ export class PacificHermitCrab extends Organism {
     // Create eye stalks (2)
     this.createEyeStalks();
 
-    // Note: Egg flaps for females are created in constructor after gender is set
-
-    // Return the body mesh (physics will attach to this)
-    return bodyMesh;
+    // Create egg flaps for females
+    if (this.gender === 'female') {
+      this.createEggFlaps();
+    }
   }
 
   private createLegs() {
@@ -435,12 +446,27 @@ export class PacificHermitCrab extends Organism {
     // Execute current activity
     this.performActivity(deltaTime, env);
 
+    // Desiccation stress when exposed at low tide
+    if (env.tideLevel < 0.2) {
+      this.health -= 0.1 * deltaTime / 86400;
+      this.happiness -= 0.2;
+    }
+
     // Update shell visual based on cleanliness
     this.updateShellAppearance();
+
+    // Update slime trail
+    this.updateTrail(deltaTime);
   }
 
   private decideActivity(env: EnvironmentParameters) {
     // Priority system
+
+    // HIGHEST PRIORITY: Seek water when tide is dangerously low
+    if (env.tideLevel < 0.3) {
+      this.currentActivity = 'seeking_water';
+      return;
+    }
 
     // If very dirty shell, groom
     if (this.shellCleanliness < 30 && this.activityTimer > 10) {
@@ -577,6 +603,29 @@ export class PacificHermitCrab extends Organism {
         }
         break;
 
+      case 'seeking_water':
+        this.profile.mood = "Seeking moisture!";
+        this.isMoving = true;
+
+        // Move toward the tide pool center (0, y, 0) where water is
+        const waterTarget = new THREE.Vector3(0, 0.1, 0);
+        const toWater = waterTarget.clone().sub(currentPos).normalize();
+        this.rigidBody.applyImpulse(
+          {
+            x: toWater.x * this.movementSpeed * 3, // Urgent!
+            y: 0,
+            z: toWater.z * this.movementSpeed * 3,
+          },
+          true
+        );
+
+        // If close to tide pool center, switch to bathing
+        if (currentPos.distanceTo(waterTarget) < 2) {
+          this.currentActivity = 'bathing';
+          this.activityTimer = 0;
+        }
+        break;
+
       case 'resting':
         this.profile.mood = this.happiness > 70 ? "Content" : "Resting quietly";
         this.isMoving = false;
@@ -675,6 +724,65 @@ export class PacificHermitCrab extends Organism {
     });
   }
 
+  private updateTrail(deltaTime: number) {
+    this.trailTimer += deltaTime;
+
+    // Drop trail markers while moving
+    if (this.isMoving && this.trailTimer >= 0.3) {
+      this.trailTimer = 0;
+      const pos = this.getPosition();
+
+      if (pos.distanceTo(this.lastTrailPos) > 0.03) {
+        this.addTrailMarker(pos);
+        this.lastTrailPos.copy(pos);
+      }
+    }
+
+    // Age and fade existing markers
+    for (let i = this.trailMarkers.length - 1; i >= 0; i--) {
+      this.trailMarkers[i].age += deltaTime;
+      const marker = this.trailMarkers[i];
+      const mat = marker.mesh.material as THREE.MeshStandardMaterial;
+      mat.opacity = Math.max(0, 0.5 * (1 - marker.age / 45));
+
+      // Remove fully faded markers
+      if (marker.age >= 45) {
+        this.trailGroup.remove(marker.mesh);
+        mat.dispose();
+        this.trailMarkers.splice(i, 1);
+      }
+    }
+
+    // Cap total markers
+    while (this.trailMarkers.length > 40) {
+      const oldest = this.trailMarkers.shift()!;
+      this.trailGroup.remove(oldest.mesh);
+      (oldest.mesh.material as THREE.Material).dispose();
+    }
+  }
+
+  private addTrailMarker(position: THREE.Vector3) {
+    // Lazy-init shared geometry
+    if (!PacificHermitCrab.trailGeometry) {
+      PacificHermitCrab.trailGeometry = new THREE.CircleGeometry(0.025, 6);
+    }
+
+    const mat = new THREE.MeshStandardMaterial({
+      color: 0x88aa66,
+      transparent: true,
+      opacity: 0.5,
+      roughness: 0.95,
+      depthWrite: false,
+    });
+
+    const marker = new THREE.Mesh(PacificHermitCrab.trailGeometry, mat);
+    marker.rotation.x = -Math.PI / 2; // Flat on ground
+    marker.position.set(position.x, 0.005, position.z);
+
+    this.trailGroup.add(marker);
+    this.trailMarkers.push({ mesh: marker, age: 0 });
+  }
+
   getMesh(): THREE.Mesh {
     return this.mesh;
   }
@@ -685,6 +793,10 @@ export class PacificHermitCrab extends Organism {
 
   getShellMesh(): THREE.Mesh {
     return this.shellMesh;
+  }
+
+  getTrailGroup(): THREE.Group {
+    return this.trailGroup;
   }
 
   // Getters for UI/debugging
@@ -729,28 +841,41 @@ export class PacificHermitCrab extends Organism {
     }
 
     // Dispose all body parts
-    this.bodyGroup.traverse((child) => {
-      if (child instanceof THREE.Mesh) {
-        if (child.geometry) child.geometry.dispose();
-        if (child.material) {
-          if (Array.isArray(child.material)) {
-            child.material.forEach((m: THREE.Material) => m.dispose());
-          } else {
-            child.material.dispose();
+    if (this.bodyGroup) {
+      this.bodyGroup.traverse((child) => {
+        if (child instanceof THREE.Mesh) {
+          if (child.geometry) child.geometry.dispose();
+          if (child.material) {
+            if (Array.isArray(child.material)) {
+              child.material.forEach((m: THREE.Material) => m.dispose());
+            } else {
+              child.material.dispose();
+            }
           }
         }
-      }
-    });
+      });
+    }
 
     // Remove shell mesh
-    if (this.shellMesh.parent) {
+    if (this.shellMesh && this.shellMesh.parent) {
       this.shellMesh.parent.remove(this.shellMesh);
+      this.shellMesh.geometry.dispose();
+      if (Array.isArray(this.shellMesh.material)) {
+        this.shellMesh.material.forEach((m) => m.dispose());
+      } else {
+        this.shellMesh.material.dispose();
+      }
     }
-    this.shellMesh.geometry.dispose();
-    if (Array.isArray(this.shellMesh.material)) {
-      this.shellMesh.material.forEach((m) => m.dispose());
-    } else {
-      this.shellMesh.material.dispose();
+
+    // Clean up trail
+    if (this.trailGroup) {
+      for (const marker of this.trailMarkers) {
+        (marker.mesh.material as THREE.Material).dispose();
+      }
+      if (this.trailGroup.parent) {
+        this.trailGroup.parent.remove(this.trailGroup);
+      }
+      this.trailMarkers = [];
     }
   }
 
